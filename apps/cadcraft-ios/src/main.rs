@@ -124,11 +124,15 @@ fn main() -> eframe::Result {
     };
     // Command previews of large selections outgrow wgpu's default 256 MiB buffer cap, and the
     // validation error is fatal: ask for what the adapter supports (as the desktop app does).
+    // Every other limit is lowered to the adapter's: the iOS Simulator's Metal offers 15
+    // inter-stage shader variables where wgpu's defaults ask for 16, and the device is refused.
     if let eframe::egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup {
         let base = std::sync::Arc::clone(&create.device_descriptor);
         create.device_descriptor = std::sync::Arc::new(move |adapter| {
             let mut d = base(adapter);
-            d.required_limits.max_buffer_size = d.required_limits.max_buffer_size.max(adapter.limits().max_buffer_size);
+            let supported = adapter.limits();
+            d.required_limits.max_buffer_size = d.required_limits.max_buffer_size.max(supported.max_buffer_size);
+            d.required_limits = d.required_limits.clone().or_worse_values_from(&supported);
             d
         });
     }

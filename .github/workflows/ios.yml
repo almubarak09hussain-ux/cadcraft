@@ -51,6 +51,13 @@ jobs:
       - name: Build the app
         run: packaging/ios/build.sh
 
+      # Before the simulator run, so a failure there still leaves the IPA to try on an iPad.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cadcraft-ipad-unsigned-ipa
+          path: dist/ios/*.ipa
+          if-no-files-found: error
+
       - name: Run it in an iPad simulator
         run: packaging/ios/run-simulator.sh
 
@@ -60,9 +67,3 @@ jobs:
           name: ipad-simulator
           path: dist/ios/simulator
           if-no-files-found: warn
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: cadcraft-ipad-unsigned-ipa
-          path: dist/ios/*.ipa
-          if-no-files-found: error

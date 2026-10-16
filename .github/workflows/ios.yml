@@ -1,6 +1,11 @@
 # iPad app: build apps/cadcraft-ios with Xcode on macOS (packaging/ios/build.sh), start it in an
 # iPad simulator with the sample drawing (packaging/ios/run-simulator.sh), and keep the
 # screenshots, its output and an unsigned IPA (signed when installed, e.g. with Sideloadly).
+#
+# TestFlight: on pushes, when the repository has the secrets APPLE_TEAM_ID, ASC_KEY_ID,
+# ASC_ISSUER_ID and ASC_KEY_P8 (the contents of an App Store Connect API key, role Admin), the
+# app is also signed and uploaded to App Store Connect. The repository variable
+# CADCRAFT_BUNDLE_ID must then match the app's bundle ID there.
 name: iOS
 
 on:
@@ -25,7 +30,9 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 75
     env:
-      CADCRAFT_BUNDLE_ID: io.github.${{ github.repository_owner }}.cadcraft
+      CADCRAFT_BUNDLE_ID: ${{ vars.CADCRAFT_BUNDLE_ID || format('io.github.{0}.cadcraft', github.repository_owner) }}
+      # TestFlight needs a new build number for every upload.
+      CADCRAFT_BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -67,3 +74,31 @@ jobs:
           name: ipad-simulator
           path: dist/ios/simulator
           if-no-files-found: warn
+
+      - name: Check for App Store Connect secrets
+        id: asc
+        if: github.event_name != 'pull_request'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          if [ -n "$APPLE_TEAM_ID" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::TestFlight upload skipped: the APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_P8 secrets are not all set"
+          fi
+
+      - name: Upload to TestFlight
+        if: steps.asc.outputs.ready == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          key="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$ASC_KEY_P8" > "$key"
+          ASC_KEY_PATH="$key" packaging/ios/build.sh --testflight

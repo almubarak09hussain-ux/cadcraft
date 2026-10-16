@@ -17,6 +17,10 @@ targets:
     platform: iOS
     sources:
       - path: Assets.xcassets
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
+    # A shared scheme, which `xcodebuild archive` (the TestFlight build) needs.
+    scheme: {}
     settings:
       base:
         PRODUCT_NAME: CADCraft
@@ -37,7 +41,8 @@ targets:
         # The copy phase reads the cargo target directory, outside the project.
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # Ad hoc ("Sign to Run Locally") for the Simulator; device builds pass
-        # CODE_SIGNING_ALLOWED=NO and are signed when installed (Sideloadly, Xcode).
+        # CODE_SIGNING_ALLOWED=NO and are signed when installed (Sideloadly, Xcode). The
+        # TestFlight build overrides these with automatic signing for the team (build.sh).
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""

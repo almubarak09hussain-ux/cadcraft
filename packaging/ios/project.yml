@@ -1,0 +1,62 @@
+# XcodeGen spec for the iPad app (apps/cadcraft-ios). Don't run it directly: build.sh copies this
+# folder into dist/ios/xcode with the app icon, sets the environment below, and generates there.
+#
+# The app is a Rust binary: build.sh compiles it with cargo first. The Xcode target has no
+# sources of its own; a build phase copies that binary in as the app's executable, and Xcode adds
+# the Info.plist, the compiled app icon and the signature.
+#
+# Environment (from build.sh): CADCRAFT_BUNDLE_ID, CADCRAFT_SHORT_VERSION, CADCRAFT_BUILD_NUMBER,
+# CADCRAFT_BUILD_SHA, CARGO_TARGET_DIR.
+name: CADCraft
+options:
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  CADCraft:
+    type: application
+    platform: iOS
+    sources:
+      - path: Assets.xcassets
+    settings:
+      base:
+        PRODUCT_NAME: CADCraft
+        PRODUCT_BUNDLE_IDENTIFIER: ${CADCRAFT_BUNDLE_ID}
+        MARKETING_VERSION: ${CADCRAFT_SHORT_VERSION}
+        CURRENT_PROJECT_VERSION: ${CADCRAFT_BUILD_NUMBER}
+        CADCRAFT_BUILD_SHA: ${CADCRAFT_BUILD_SHA}
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        # iPad only.
+        TARGETED_DEVICE_FAMILY: "2"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # cargo builds arm64 only (aarch64-apple-ios, aarch64-apple-ios-sim).
+        ARCHS: arm64
+        ONLY_ACTIVE_ARCH: NO
+        # The copy phase reads the cargo target directory, outside the project.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        # Ad hoc ("Sign to Run Locally") for the Simulator; device builds pass
+        # CODE_SIGNING_ALLOWED=NO and are signed when installed (Sideloadly, Xcode).
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+    postCompileScripts:
+      - name: Embed the Rust binary
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)
+        script: |
+          set -eu
+          case "$PLATFORM_NAME" in
+            iphonesimulator) triple=aarch64-apple-ios-sim ;;
+            iphoneos) triple=aarch64-apple-ios ;;
+            *) echo "error: no Rust target for platform $PLATFORM_NAME" >&2; exit 1 ;;
+          esac
+          bin="$CARGO_TARGET_DIR/$triple/release/cadcraft-ios"
+          if [ ! -f "$bin" ]; then
+            echo "error: $bin is missing (packaging/ios/build.sh builds it first)" >&2
+            exit 1
+          fi
+          mkdir -p "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH"
+          cp -f "$bin" "$TARGET_BUILD_DIR/$EXECUTABLE_PATH"

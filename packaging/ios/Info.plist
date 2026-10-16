@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The iPad app's Info.plist. Xcode fills the $(...) build settings (project.yml, build.sh). -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>CADCraft</string>
+  <key>CFBundleName</key>
+  <string>CADCraft</string>
+  <key>CFBundleExecutable</key>
+  <string>$(EXECUTABLE_NAME)</string>
+  <key>CFBundleIdentifier</key>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$(MARKETING_VERSION)</string>
+  <key>CFBundleVersion</key>
+  <string>$(CURRENT_PROJECT_VERSION)</string>
+  <key>CADCraftBuildCommit</key>
+  <string>$(CADCRAFT_BUILD_SHA)</string>
+  <key>LSRequiresIPhoneOS</key>
+  <true/>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.graphics-design</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright © the CADCraft authors. MIT OR Apache-2.0.</string>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
+
+  <!-- wgpu draws with Metal on Apple silicon iPads. -->
+  <key>UIRequiredDeviceCapabilities</key>
+  <array>
+    <string>arm64</string>
+    <string>metal</string>
+  </array>
+  <!-- An empty launch screen: without one iPadOS runs the app letterboxed in compatibility mode. -->
+  <key>UILaunchScreen</key>
+  <dict/>
+  <!-- Every orientation and no full-screen requirement, so Stage Manager can resize the window. -->
+  <key>UISupportedInterfaceOrientations~ipad</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationPortraitUpsideDown</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+  <key>UIRequiresFullScreen</key>
+  <false/>
+  <key>UIStatusBarHidden</key>
+  <true/>
+  <key>UIViewControllerBasedStatusBarAppearance</key>
+  <false/>
+  <!-- Mouse and trackpad arrive as pointer events (hover, right click, scrolling), not touches. -->
+  <key>UIApplicationSupportsIndirectInputEvents</key>
+  <true/>
+
+  <!-- The Documents folder shows in the Files app as On My iPad › CADCraft (apps/cadcraft-ios/src/files.rs). -->
+  <key>UIFileSharingEnabled</key>
+  <true/>
+  <key>LSSupportsOpeningDocumentsInPlace</key>
+  <true/>
+</dict>
+</plist>

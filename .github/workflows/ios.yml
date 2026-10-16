@@ -1,0 +1,68 @@
+# iPad app: build apps/cadcraft-ios with Xcode on macOS (packaging/ios/build.sh), start it in an
+# iPad simulator with the sample drawing (packaging/ios/run-simulator.sh), and keep the
+# screenshots, its output and an unsigned IPA (signed when installed, e.g. with Sideloadly).
+name: iOS
+
+on:
+  push:
+    branches: [ios]
+  pull_request:
+    paths:
+      - .github/workflows/ios.yml
+      - apps/cadcraft-ios/**
+      - packaging/ios/**
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ipad:
+    runs-on: macos-15
+    timeout-minutes: 75
+    env:
+      CADCRAFT_BUNDLE_ID: io.github.${{ github.repository_owner }}.cadcraft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-ios,aarch64-apple-ios-sim
+          rustup default stable
+          rustc --version
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ios-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ios-${{ runner.os }}-
+
+      - name: XcodeGen
+        run: brew install xcodegen
+
+      - name: Build the app
+        run: packaging/ios/build.sh
+
+      - name: Run it in an iPad simulator
+        run: packaging/ios/run-simulator.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ipad-simulator
+          path: dist/ios/simulator
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cadcraft-ipad-unsigned-ipa
+          path: dist/ios/*.ipa
+          if-no-files-found: error

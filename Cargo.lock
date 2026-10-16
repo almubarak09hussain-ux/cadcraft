@@ -678,6 +678,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cadcraft-ios"
+version = "0.7.0"
+dependencies = [
+ "cadcraft-engine",
+ "cadcraft-io",
+ "cadcraft-ui-egui",
+ "eframe",
+ "egui",
+ "log",
+ "serde_json",
+ "sys-locale",
+]
+
+[[package]]
 name = "cadcraft-mcp"
 version = "0.7.0"
 dependencies = [

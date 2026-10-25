@@ -19,6 +19,9 @@
 #[cfg(any(target_os = "ios", test))]
 mod documents;
 #[cfg(any(target_os = "ios", test))]
+#[cfg_attr(not(target_os = "ios"), allow(dead_code))] // host builds compile it for its tests only
+mod logging;
+#[cfg(any(target_os = "ios", test))]
 mod paths;
 
 #[cfg(target_os = "ios")]
@@ -85,6 +88,8 @@ mod ios {
     }
 
     pub fn run() -> eframe::Result {
+        crate::logging::install();
+        log::info!("cadcraft-ios {} starting", env!("CARGO_PKG_VERSION"));
         let paths = Paths::from_home(std::env::var_os("HOME"));
         if let Some(p) = &paths {
             for dir in [&p.documents, &p.support] {
@@ -152,7 +157,14 @@ mod ios {
 
 #[cfg(target_os = "ios")]
 fn main() -> eframe::Result {
-    ios::run()
+    // Errors before the event loop end up here. Once it runs, winit ends the process itself on
+    // iOS (run_native never returns), and eframe logs the error first ("Exiting because of
+    // error"); the logger puts both on the console.
+    let result = ios::run();
+    if let Err(e) = &result {
+        log::error!("CADCraft could not start: {e}");
+    }
+    result
 }
 
 #[cfg(not(target_os = "ios"))]

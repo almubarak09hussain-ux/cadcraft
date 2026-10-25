@@ -66,6 +66,10 @@
        avoided through the safe area egui reports. -->
   <key>UIStatusBarHidden</key>
   <true/>
+  <!-- Without this, winit's view controller decides (it answers "not hidden") and the status bar
+       covers the quick access toolbar. -->
+  <key>UIViewControllerBasedStatusBarAppearance</key>
+  <false/>
   <key>UIRequiresFullScreen</key>
   <false/>
   <key>UILaunchScreen</key>

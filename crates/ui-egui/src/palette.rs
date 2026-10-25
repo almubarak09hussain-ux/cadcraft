@@ -2,7 +2,7 @@
 //! alias, label or menu path, and started as its menu item starts it ([`CadApp::start`]).
 //!
 //! On a touch screen it stands in for the menu bar, whose items are too small for a finger: the
-//! Commands button beside the command line opens it (softkeys.rs), its rows are finger-sized, and
+//! Commands button in the drawing area's corner opens it (softkeys.rs), its rows are finger-sized, and
 //! its search field brings up the system keyboard. Elsewhere Ctrl/Cmd+Shift+P (`ui.palette`)
 //! opens it. Enter starts the first match, Escape or the close button closes it.
 

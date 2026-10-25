@@ -118,3 +118,49 @@ fn a_finger_gets_larger_pick_boxes_until_the_mouse_moves() {
     frame(&mut app, &ctx, vec![Event::PointerMoved(pos2(810.0, 505.0))], 1.2);
     assert_eq!(app.session.pointer_scale(), 1.0, "a mouse move restores PICKBOX's size");
 }
+
+/// iPad: the status bar and the home indicator cover the window's edges (egui's safe area); the
+/// toolbar, drawing area and command line stay inside it.
+#[test]
+fn the_interface_stays_inside_the_safe_area() {
+    let mut app = CadApp::new(Session::new(), Services::default());
+    let ctx = egui::Context::default();
+    let insets = egui::SafeAreaInsets(egui::epaint::MarginF32 { left: 0.0, right: 0.0, top: 24.0, bottom: 20.0 });
+    let run = |app: &mut CadApp, time: f64| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1024.0, 1366.0))),
+            safe_area_insets: Some(insets),
+            time: Some(time),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| app.ui(ui));
+        output.textures_delta.clear();
+        output
+    };
+    app.logic(&ctx);
+    run(&mut app, 0.0);
+    let out = run(&mut app, 0.05);
+    let canvas = app.canvas.xf.map(|x| x.rect).expect("the drawing area was laid out");
+    assert!(canvas.top() >= 24.0 && canvas.bottom() <= 1366.0 - 20.0, "drawing area {canvas:?}");
+    // No text shows under the status bar or the home indicator (what a clip rect hides, such as
+    // a scrolled panel's overflow, doesn't show).
+    fn texts(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<egui::Rect>) {
+        match shape {
+            egui::Shape::Text(t) => {
+                let shown = t.visual_bounding_rect().intersect(clip);
+                if shown.is_positive() {
+                    out.push(shown);
+                }
+            }
+            egui::Shape::Vec(v) => v.iter().for_each(|s| texts(s, clip, out)),
+            _ => {}
+        }
+    }
+    let mut rects = Vec::new();
+    for s in &out.shapes {
+        texts(&s.shape, s.clip_rect, &mut rects);
+    }
+    assert!(!rects.is_empty());
+    let outside: Vec<_> = rects.iter().filter(|r| r.top() < 24.0 - 0.5 || r.bottom() > 1366.0 - 20.0 + 0.5).collect();
+    assert!(outside.is_empty(), "text outside the safe area: {outside:?}");
+}

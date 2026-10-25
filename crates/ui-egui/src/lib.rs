@@ -631,7 +631,15 @@ impl CadApp {
 
     /// Lay out the whole window.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        i18n::with_language(self.language(), || self.draw(ui));
+        // Inside the safe area: on iPad (and phones in a browser) the status bar and the home
+        // indicator cover the edges of the window. Elsewhere it is the whole window.
+        let safe = ui.ctx().content_rect();
+        if safe != ui.max_rect() {
+            ui.painter().rect_filled(ui.max_rect(), 0.0, ui.visuals().panel_fill);
+        }
+        ui.scope_builder(egui::UiBuilder::new().max_rect(safe), |ui| {
+            i18n::with_language(self.language(), || self.draw(ui));
+        });
     }
 
     fn draw(&mut self, ui: &mut egui::Ui) {

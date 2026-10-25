@@ -2,7 +2,7 @@
 //!
 //! The command line takes keystrokes without a text field (typing anywhere goes to it), so a
 //! touch screen's keyboard never comes up by itself. On a touch screen (or where the host says
-//! so: the iPad app), a Keyboard button sits left of the command line. Tapping it opens the
+//! so: the iPad app), a Keyboard button sits in the drawing area's top-left corner. Tapping it opens the
 //! **input strip** at the top of the drawing area, clear of the system keyboard, which covers the
 //! bottom of the screen and the command line with it. The strip shows the prompt and what is
 //! typed, a row of drafting keys the system keyboard hides behind its symbol pages (`@ < , . -`,
@@ -88,18 +88,20 @@ pub fn press(app: &mut CadApp, key: Send) {
     }
 }
 
-/// The Keyboard button left of the command line `bar`, and the input strip at the top of
-/// `canvas` while it is open. Call after the command line is drawn.
-pub fn show(app: &mut CadApp, ctx: &egui::Context, canvas: Rect, bar: Rect) {
+/// The Commands and Keyboard buttons in `canvas`'s top-left corner, and the input strip at the
+/// top of `canvas` while it is open. Call after the command line is drawn.
+pub fn show(app: &mut CadApp, ctx: &egui::Context, canvas: Rect) {
     if !wanted(app, ctx) {
         app.softkeys.open = false;
         return;
     }
     let t = Tokens::get();
     if !app.softkeys.open {
-        // Keyboard, and Commands (the command palette: the menu bar is too small for a finger).
-        let size = vec2(96.0, bar.height().max(KEY_SIZE));
-        let at = pos2((bar.left() - 2.0 * size.x - 16.0).max(canvas.left() + 4.0), bar.bottom() - size.y);
+        // Commands (the command palette: the menu bar is too small for a finger) and Keyboard, in
+        // the drawing area's top-left corner below the viewport label: beside the command line
+        // they covered it where the drawing area is narrow (iPad in portrait).
+        let size = vec2(96.0, KEY_SIZE);
+        let at = pos2(canvas.left() + 8.0, canvas.top() + 30.0);
         egui::Area::new(egui::Id::new("softkeys_toggle")).order(egui::Order::Foreground).fixed_pos(at).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui.add(egui::Button::new(crate::i18n::t("Commands")).min_size(size)).clicked() {

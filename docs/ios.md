@@ -1,7 +1,8 @@
 # CADCraft on iPad
 
 > **Status:** first build, 2026-10-25. Builds and type-checks for iPadOS (`cargo xtask ios`).
-> Nobody has run it on a device or the simulator yet: the next step needs a Mac with Xcode.
+> The macOS CI job (`.github/workflows/ipad.yml`) builds it for the simulator and launches it;
+> nobody has used it on a device yet.
 
 `apps/cadcraft-ios` runs the same app as the desktop and web builds (`cadcraft_ui_egui::CadApp`:
 the drafting UI, command line, menus, ribbon and palettes), through eframe on winit's UIKit
@@ -37,6 +38,17 @@ xcrun simctl boot "iPad Pro 13-inch (M4)"   # or any iPad simulator: xcrun simct
 xcrun simctl install booted target/ios/iphonesimulator/CADCraft.app
 xcrun simctl launch --console booted ai.storyteller.cadcraft
 ```
+
+`packaging/ios/simulator-smoke.sh` does the simulator steps for you. It picks the newest iPad
+simulator, installs and launches the app, checks it is still running after 30 seconds, and
+saves a screenshot, the app's log and any crash report under `target/ios/smoke`.
+
+### CI
+
+`.github/workflows/ipad.yml` runs on a macOS runner when a change touches the iPad app, the UI
+crate, the iOS packaging or `Cargo.lock`, and weekly for everything else. It runs
+`cargo xtask ios`, builds the simulator bundle and runs the smoke test. The screenshot and logs
+are uploaded as the `ipad-simulator-smoke` artifact, even when the test fails.
 
 On a device (`cargo xtask ios --bundle` builds `target/ios/iphoneos/CADCraft.app`), the bundle
 must be signed with your team's identity and a provisioning profile for

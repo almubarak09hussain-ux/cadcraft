@@ -85,6 +85,13 @@ fn bundle(sim: bool) -> Result<(), String> {
     let template_path = root.join("packaging/ios/Info.plist.in");
     let template = std::fs::read_to_string(&template_path).map_err(|e| format!("{}: {e}", template_path.display()))?;
     std::fs::write(app.join("Info.plist"), fill_plist(&template, &version, &sha, platform)).map_err(|e| format!("Info.plist: {e}"))?;
+    // The simulator on Apple silicon installs only signed bundles; an ad-hoc signature will do.
+    // Device builds are signed with the team's identity instead (docs/ios.md).
+    if sim {
+        let mut c = std::process::Command::new("codesign");
+        c.args(["--force", "--sign", "-", "--timestamp=none"]).arg(&app);
+        run(c, "codesign --force --sign - CADCraft.app")?;
+    }
     println!("\nbuilt {}", app.display());
     if sim {
         println!("install: xcrun simctl install booted {}\nlaunch:  xcrun simctl launch booted ai.storyteller.cadcraft", app.display());

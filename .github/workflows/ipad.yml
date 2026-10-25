@@ -1,0 +1,70 @@
+# The iPad app on a macOS runner: clippy for aarch64-apple-ios, a simulator build of
+# CADCraft.app, and a smoke test that launches it on an iPad simulator and checks it stays up
+# (packaging/ios/simulator-smoke.sh). The screenshot and log are uploaded either way.
+name: iPad
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/cadcraft-ios/**
+      - packaging/ios/**
+      - crates/ui-egui/**
+      - xtask/src/ios.rs
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/ipad.yml
+  pull_request:
+    paths:
+      - apps/cadcraft-ios/**
+      - packaging/ios/**
+      - crates/ui-egui/**
+      - xtask/src/ios.rs
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/ipad.yml
+  # Weekly, for changes elsewhere (engine, io) that only break the iPad build at link or run time.
+  schedule:
+    - cron: "17 4 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ipad-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain and iOS targets
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ipad-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ipad-${{ runner.os }}-
+      - name: cargo xtask ios (clippy, aarch64-apple-ios)
+        run: cargo xtask ios
+      - name: cargo xtask ios --bundle --sim
+        run: cargo xtask ios --bundle --sim
+      - name: Launch on an iPad simulator
+        run: packaging/ios/simulator-smoke.sh
+      - name: Upload screenshot and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ipad-simulator-smoke
+          path: target/ios/smoke
+          if-no-files-found: ignore

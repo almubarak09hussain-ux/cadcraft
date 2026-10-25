@@ -173,7 +173,7 @@ presence: an option that prints "not available yet" doesn't count.
 | Performance | 5% | 60% | 20–40 | internal numbers only (200k entities fluent); 1M entities and large DWG loads untested; a 10 MB DWG took ~2 min to fail (#57) | [hardware-parity](hardware-parity.md#performance-on-hardware-internal-numbers-only) |
 | Ecosystem and automation (AutoLISP/Visual LISP, .NET/ObjectARX, CUI, APPLOAD, Express Tools, App Store) | 5% | 10% | 120–200 | estimated; MCP, CLI and the control channel are ahead of AutoCAD, but no LISP, CUI or plug-ins | [gaps](gaps.md#ecosystem-and-automation) |
 | Hardware | 3% | 45% | 15–25 | estimated | [hardware-parity](hardware-parity.md) |
-| Platforms | 3% | 75% | 15–25 | macOS, Windows (x64/x86/arm64), Linux, FreeBSD, web: more than AutoCAD; but the web build can't open or save files reliably (#55, #133, #134) and has no DWG, and Windows/Linux get little runtime testing | [gaps](gaps.md#platforms) |
+| Platforms | 3% | 75% | 15–25 | macOS, Windows (x64/x86/arm64), Linux, FreeBSD, web, and an iPad build that has not run on a device yet ([ios.md](ios.md)): more than AutoCAD; but the web build can't open or save files reliably (#55, #133, #134) and has no DWG, and Windows/Linux get little runtime testing | [gaps](gaps.md#platforms) |
 | Localization | 3% | 5% | 60–100 | measured: string catalog with Ukrainian (936 rows, #36); none of AutoCAD for Mac's 7 other languages | [localization-parity](localization-parity.md) |
 | AI features (Autodesk Assistant, Smart Blocks, Markup Assist) | 1% | 20% | 40–80 | none of AutoCAD's in-app AI; agent control over MCP is a different strength | [gaps](gaps.md#ai-features) |
 | **Ready for real work** | 100% | **≈ 38%** | **≈ 1,300–2,100** | | |

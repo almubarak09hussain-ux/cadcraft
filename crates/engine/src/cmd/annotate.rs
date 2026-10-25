@@ -889,7 +889,7 @@ impl Interactive for OverrideM {
 // ---------------- interactive ----------------
 
 fn pick_at(s: &Session, p: Vec2) -> Option<Handle> {
-    let ap = s.pixel_size() * s.settings.pickbox.max(1.0) * 1.5;
+    let ap = s.pick_aperture();
     crate::select::pick(s.doc().ok()?, &s.space(), p, ap)
 }
 

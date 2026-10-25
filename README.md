@@ -135,6 +135,7 @@ zoom e                          zoom to extents
 ```
 
 The web build: `cd apps/cadcraft-web && trunk serve` (needs [trunk](https://trunkrs.dev)).
+The iPad build: `cargo xtask ios` checks it; [docs/ios.md](docs/ios.md) covers the simulator and devices.
 
 ### Fonts
 
@@ -236,11 +237,11 @@ fonts ┤ render               stroke font + TEXT/MTEXT layout │ display lists
 io    ┤                       DXF mapping, SVG/PNG export
 engine┤                       sessions, commands, command line + prompts, snaps, selection, undo
 ui-egui · mcp                 the swappable egui front end · MCP server
-apps: cadcraft · cadcraft-cli · cadcraft-web
+apps: cadcraft · cadcraft-cli · cadcraft-web · cadcraft-ios
 ```
 
 Nothing below `ui-egui` knows about egui, so the front end can be replaced. `cargo xtask ci`
-checks formatting, clippy, tests, asset attribution, the crate layering and the wasm build.
+checks formatting, clippy, tests, asset attribution, the crate layering, the wasm build and the iPad build.
 
 Drafting and layer-palette icon buttons use the pinned `craft-ui` button component for interaction,
 accessible labels and keyboard focus. CADCraft keeps its multicolor icon painter, dark palette,

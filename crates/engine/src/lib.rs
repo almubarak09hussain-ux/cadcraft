@@ -649,6 +649,10 @@ pub struct Session {
     pub tracking: snap::tracking::Tracker,
     /// Viewport size in pixels (from the UI; used for zoom and pick apertures).
     pub viewport_px: (f64, f64),
+    /// How much larger pick apertures are than PICKBOX says, for the pointing device in use
+    /// (a finger on a touch screen: [`Session::set_pointer_scale`]). Not a system variable: never
+    /// saved, and PICKBOX keeps its value.
+    pointer_scale: f64,
     pub clipboard: Vec<Entity>,
     pub clipboard_base: Vec2,
     pub pending_window: Option<PendingWindow>,
@@ -706,6 +710,7 @@ impl Session {
             compare: None,
             tracking: snap::tracking::Tracker::default(),
             viewport_px: (1200.0, 800.0),
+            pointer_scale: 1.0,
             clipboard: Vec::new(),
             clipboard_base: Vec2::ZERO,
             pending_window: None,
@@ -849,6 +854,27 @@ impl Session {
         }
         let h = self.doc_mut()?.add(&space, common, kind)?;
         Ok(h)
+    }
+
+    /// The largest [`Session::set_pointer_scale`] accepts.
+    pub const MAX_POINTER_SCALE: f64 = 4.0;
+
+    /// Make pick apertures `scale` times what PICKBOX gives (1 for a mouse or pen, more for a
+    /// finger). Values that are not finite or below 1 mean 1; above
+    /// [`Session::MAX_POINTER_SCALE`], that.
+    pub fn set_pointer_scale(&mut self, scale: f64) {
+        self.pointer_scale = if scale.is_finite() { scale.clamp(1.0, Self::MAX_POINTER_SCALE) } else { 1.0 };
+    }
+
+    /// See [`Session::set_pointer_scale`].
+    pub fn pointer_scale(&self) -> f64 {
+        self.pointer_scale
+    }
+
+    /// The pick aperture in world units: half the pick box (PICKBOX × 1.5 pixels, at least 1.5)
+    /// at the current view, scaled for the pointing device.
+    pub fn pick_aperture(&self) -> f64 {
+        self.pixel_size() * self.settings.pickbox.max(1.0) * 1.5 * self.pointer_scale
     }
 
     /// World units per pixel at the current view.
@@ -1107,7 +1133,7 @@ impl Session {
         let space = self.space();
         match input {
             Input::Point(p) => {
-                let ap = self.pixel_size() * self.settings.pickbox.max(1.0) * 1.5;
+                let ap = self.pick_aperture();
                 if let Some(pw) = self.pending_window.take() {
                     let crossing = p.x < pw.corner.x;
                     let hs = select::select_window(self.doc()?, &space, Bounds2::new(pw.corner, p), crossing);
@@ -1652,7 +1678,7 @@ impl Session {
             self.set_selection(sel);
             return Ok(());
         }
-        let ap = self.pixel_size() * self.settings.pickbox.max(1.0) * 1.5;
+        let ap = self.pick_aperture();
         match select::pick(self.doc()?, &space, p, ap) {
             Some(h) => {
                 // With group selection the object's selectable groups come (or go) with it.

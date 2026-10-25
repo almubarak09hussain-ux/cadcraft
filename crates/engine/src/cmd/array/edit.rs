@@ -870,7 +870,7 @@ impl Interactive for EditM {
                 RepItems
             }
             (RepItems, Input::Point(at)) => {
-                let tol = s.pixel_size() * s.settings.pickbox;
+                let tol = s.pixel_size() * s.settings.pickbox * s.pointer_scale();
                 let item = item_at(s.doc()?, h, *at, tol).ok_or_else(|| other("No array item there; select an item of the array."))?;
                 let name = self.rep_block.clone().ok_or_else(|| other("No replacement objects."))?;
                 self.change(s, |p| {
@@ -889,7 +889,7 @@ impl Interactive for EditM {
             }
             (RepItems, Input::Enter) => Main,
             (SourceItem, Input::Point(at)) => {
-                let tol = s.pixel_size() * s.settings.pickbox;
+                let tol = s.pixel_size() * s.settings.pickbox * s.pointer_scale();
                 let item = item_at(s.doc()?, h, *at, tol).ok_or_else(|| other("No array item there; select an item of the array."))?;
                 open_source(s, h, item)?;
                 return Ok(Step::Done);

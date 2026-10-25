@@ -512,7 +512,7 @@ pub fn ssget(ctx: &mut Ctx<'_>, a: Vec<Value>) -> Result<Flow, LispError> {
                 // A point: the object there.
                 let p = point(0)?;
                 let s = &*ctx.s;
-                let ap = s.settings.pickbox.max(1.0) * s.pixel_size();
+                let ap = s.settings.pickbox.max(1.0) * s.pixel_size() * s.pointer_scale();
                 let Ok(d) = s.doc() else { return Ok(Flow::Value(Value::Nil)) };
                 crate::select::pick(d, &space, p, ap).into_iter().collect()
             }

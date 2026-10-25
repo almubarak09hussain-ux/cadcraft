@@ -23,6 +23,7 @@ pub mod dialogs;
 pub mod docking;
 pub mod hatchdlg;
 mod mtext_editor;
+pub mod softkeys;
 pub mod spacemouse;
 // The External References palette.
 pub mod xrefs;
@@ -38,12 +39,14 @@ pub mod managers;
 pub mod menus;
 pub mod opening;
 pub mod options;
+pub mod palette;
 pub mod palettes;
 pub mod parametric;
 pub mod plotstyles;
 pub mod quick;
 pub mod shortcut_menus;
 pub mod theme;
+pub mod touch;
 pub mod viewcube;
 pub mod vpscale;
 
@@ -213,6 +216,10 @@ pub struct CadApp {
     queued_shots: Vec<(u64, f64, u32)>,
     shot_token: u64,
     pub synthetic: Vec<egui::Event>,
+    /// The on-screen keyboard for touch screens ([`softkeys`]).
+    pub softkeys: softkeys::SoftKeys,
+    /// The command palette ([`palette`]).
+    pub palette: palette::Palette,
     /// Caps the frame rate when presenting without vsync (see [`gpu::FrameCap`]).
     #[cfg(not(target_arch = "wasm32"))]
     pub frame_cap: Option<gpu::FrameCap>,
@@ -222,6 +229,11 @@ pub struct CadApp {
     shown_theme: Option<egui::Theme>,
     /// Whether the last applied theme was handed to egui as the System preference.
     shown_follows_system: bool,
+    /// Whether the finger-sized spacing was last installed ([`theme::apply_touch`]).
+    shown_touch: bool,
+    /// The host is a touch device (the iPad app sets it): finger-sized controls, and the
+    /// on-screen keyboard is offered before the first touch ([`softkeys`]).
+    pub touch_device: bool,
     /// Whether egui was last told to animate (`None` until the first frame).
     shown_animations: Option<bool>,
     pub frame_ms: f64,
@@ -265,11 +277,15 @@ impl CadApp {
             queued_shots: Vec::new(),
             shot_token: 0,
             synthetic: Vec::new(),
+            softkeys: softkeys::SoftKeys::default(),
+            palette: palette::Palette::default(),
             #[cfg(not(target_arch = "wasm32"))]
             frame_cap: None,
             fonts_language: None,
             shown_theme: None,
             shown_follows_system: false,
+            shown_touch: false,
+            touch_device: false,
             shown_animations: None,
             frame_ms: 0.0,
             quit_requested: false,
@@ -547,8 +563,12 @@ impl CadApp {
         theme::set_active(shown);
         theme::set_canvas(self.options.canvas());
         let follows_system = self.ui.theme == theme::ThemePref::System;
-        if self.shown_theme != Some(shown) || self.shown_follows_system != follows_system {
+        if self.shown_theme != Some(shown) || self.shown_follows_system != follows_system || self.shown_touch != self.touch_device {
             theme::apply(ctx, shown, follows_system);
+            if self.touch_device {
+                theme::apply_touch(ctx);
+            }
+            self.shown_touch = self.touch_device;
             self.shown_theme = Some(shown);
             self.shown_follows_system = follows_system;
         }
@@ -611,7 +631,15 @@ impl CadApp {
 
     /// Lay out the whole window.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        i18n::with_language(self.language(), || self.draw(ui));
+        // Inside the safe area: on iPad (and phones in a browser) the status bar and the home
+        // indicator cover the edges of the window. Elsewhere it is the whole window.
+        let safe = ui.ctx().content_rect();
+        if safe != ui.max_rect() {
+            ui.painter().rect_filled(ui.max_rect(), 0.0, ui.visuals().panel_fill);
+        }
+        ui.scope_builder(egui::UiBuilder::new().max_rect(safe), |ui| {
+            i18n::with_language(self.language(), || self.draw(ui));
+        });
     }
 
     fn draw(&mut self, ui: &mut egui::Ui) {
@@ -637,6 +665,7 @@ impl CadApp {
             }
         });
         dialogs::show(self, ui.ctx());
+        palette::show(self, ui.ctx());
         palettes::patterns::prompt_picker(self, ui.ctx());
         closing::prompt(self, ui.ctx());
         autosave::show(self, ui.ctx());

@@ -332,7 +332,7 @@ impl Interactive for QDimM {
                 self.ask = Ask::Position;
             }
             (Ask::Remove, Input::Point(p)) => {
-                self.tol = self.tol.max(s.pixel_size() * s.settings.pickbox.max(1.0));
+                self.tol = self.tol.max(s.pixel_size() * s.settings.pickbox.max(1.0) * s.pointer_scale());
                 self.remove.push(p);
             }
             (Ask::Add, Input::Point(p)) => self.add.push(p),

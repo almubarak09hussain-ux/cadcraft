@@ -121,6 +121,8 @@ pub struct CanvasState {
     pub param: crate::parametric::Cache,
     /// A selection window opened by a press-and-drag, to close where the button is let go.
     drag_window: bool,
+    /// Touch gestures in progress ([`crate::touch`]).
+    touch: crate::touch::Touch,
     /// The right-click that opened the shortcut menu held Shift or Ctrl: it is the object snap
     /// menu ([`crate::context_menu`]).
     pub snap_menu: bool,
@@ -1187,8 +1189,7 @@ fn effective_point(app: &mut CadApp, raw: Vec2, xf: &Xf, ctx: &egui::Context) ->
         return raw;
     }
     let (now, shift) = ctx.input(|i| (i.time, i.modifiers.shift));
-    let q =
-        snap::tracking::CursorQuery { base, deferred, corner, aperture: app.session.settings.aperture / xf.scale, tol: 6.0 / xf.scale, now, shift };
+    let q = snap::tracking::CursorQuery { base, deferred, corner, aperture: snap_aperture(app) / xf.scale, tol: 6.0 / xf.scale, now, shift };
     let r = app.session.snap_cursor(raw, &q);
     if r.wait {
         ctx.request_repaint_after(std::time::Duration::from_secs_f64(snap::tracking::DWELL / 4.0));
@@ -1257,6 +1258,13 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
             i.pointer.button_double_clicked(egui::PointerButton::Primary),
         )
     });
+    // Touch: two fingers pan and pinch, a long press is a right-click, and a tap is where the
+    // finger lifted; the pointer's clicks during a gesture place nothing (touch.rs).
+    let touch = ui.input(|i| app.canvas.touch.update(i, resp.long_touched()));
+    // A finger gets larger pick boxes, grips and snap targets than a mouse or pen.
+    app.session.set_pointer_scale(if app.canvas.touch.finger() { crate::touch::FINGER_SCALE } else { 1.0 });
+    let hover_pos = hover_pos.or(touch.lifted_at);
+    let pressed_primary = pressed_primary && !touch.suppress_primary;
     let inside = hover_pos.is_some_and(|p| rect.contains(p)) && resp.hovered();
     // Which device is scrolling? On macOS, trackpads (and Magic Mouse) report precise point
     // deltas; notched mouse wheels report lines. The answer is sticky because egui spreads a wheel
@@ -1292,8 +1300,24 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
         let about = xf.to_world(hp);
         let _ = app.session.zoom_about(f, about);
     }
+    if let Some((pan, zoom, centre)) = touch.gesture
+        && rect.contains(centre)
+    {
+        // Pinch about the fingers' centre, then follow the fingers.
+        if (zoom - 1.0).abs() > 1e-4 {
+            let _ = app.session.zoom_about(f64::from(zoom), xf.to_world(centre));
+        }
+        if pan != egui::Vec2::ZERO
+            && let Ok(st) = app.session.state_mut()
+        {
+            let v = st.view();
+            let s = f64::from(rect.height()) / v.height.max(1e-12);
+            st.set_view_quiet(cadcraft_engine::View { center: v.center - Vec2::new(f64::from(pan.x) / s, -f64::from(pan.y) / s), height: v.height });
+        }
+    }
     let zoom_pinch = ui.input(|i| crate::animation::zoom_delta(i, &opts, app.shows_animations()));
     if inside
+        && touch.gesture.is_none()
         && (zoom_pinch - 1.0).abs() > 1e-4
         && let Some(hp) = hover_pos
     {
@@ -1325,7 +1349,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
         let _ = app.session.zoom_extents();
     }
     // ZOOM Realtime: dragging up zooms in, down zooms out.
-    if resp.dragged_by(egui::PointerButton::Primary) && app.session.realtime_zoom_active() {
+    if resp.dragged_by(egui::PointerButton::Primary) && !touch.suppress_primary && app.session.realtime_zoom_active() {
         let _ = app.session.realtime_zoom(f64::from(resp.drag_delta().y));
     }
     // A click in another tile makes it current (or answers -VPORTS Join's prompts).
@@ -1409,7 +1433,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     let point_prompt = app.session.current_prompt().is_some_and(|p| cadcraft_engine::pointmod::accepts(&p))
         && app.session.pending_window.is_none()
         && !app.session.realtime_zoom_active();
-    let pressed_primary = pressed_primary || (point_prompt && resp.drag_stopped_by(egui::PointerButton::Primary));
+    let pressed_primary = pressed_primary || (point_prompt && !touch.suppress_primary && resp.drag_stopped_by(egui::PointerButton::Primary));
     if point_prompt && inside && pressed_primary && !middle_down && app.cmd.options.is_none() && app.cmd.buffer.is_empty() {
         let releases: Vec<egui::Pos2> = ui.input(|i| {
             i.events
@@ -1531,6 +1555,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     // that starts while objects are being selected opens a window where the button went down,
     // and letting go closes it. Drags on grips and drags while drawing are left alone.
     if resp.drag_started_by(egui::PointerButton::Primary)
+        && !touch.suppress_primary
         && !middle_down
         && app.session.pending_window.is_none()
         && let Some(origin) = ui.input(|i| i.pointer.press_origin())
@@ -1539,6 +1564,11 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
         && crate::dyngrips::at(app, &xf, Some(origin)).is_none()
     {
         app.canvas.drag_window = app.session.begin_window(xf.to_world(origin));
+    }
+    // A second finger turns a one-finger drag into a pan: its selection window is dropped.
+    if app.canvas.drag_window && touch.gesture.is_some() {
+        app.canvas.drag_window = false;
+        app.session.pending_window = None;
     }
     if app.canvas.drag_window && resp.drag_stopped_by(egui::PointerButton::Primary) {
         app.canvas.drag_window = false;
@@ -1556,12 +1586,18 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     // command menu); otherwise it opens the shortcut menu (Repeat, Clipboard, …).
     // Shift/Ctrl+right-click opens the object snap menu.
     let idle = !app.session.prompting();
-    if inside && pressed_secondary {
+    if inside && (pressed_secondary || touch.secondary) {
         app.canvas.snap_menu = mods.shift || mods.ctrl;
     }
     if crate::context_menu::in_command(app, ui, inside, pressed_secondary) {
         let _ = app.session.input(Input::Enter);
     }
+    // A long press is the touch right-click: Enter while a command runs. Idle, egui opens the
+    // shortcut menu for it (`Response::context_menu` answers long presses).
+    if touch.secondary && inside && !idle && !app.canvas.snap_menu {
+        let _ = app.session.input(Input::Enter);
+    }
+    let pressed_secondary = pressed_secondary || touch.secondary;
     // Right-click on a grip with options (polyline vertex, line end…) opens the grip menu.
     if inside && pressed_secondary && idle && !app.canvas.snap_menu {
         app.canvas.grip_menu = grip_at(app, &xf, hover_pos).filter(|g| !grip_options(app, *g).is_empty());
@@ -1582,8 +1618,13 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
             && let (Some(w), Ok(st)) = (raw_world, app.session.state())
         {
             let filter = app.session.settings.previewfilter;
-            app.canvas.hover = cadcraft_engine::select::pick(&st.doc, &st.edit_space(), w, app.session.settings.pickbox.max(1.0) * 1.5 / scale)
-                .filter(|h| st.doc.entity(*h).is_none_or(|e| !cadcraft_engine::select::preview_filtered(&st.doc, e, filter)));
+            app.canvas.hover = cadcraft_engine::select::pick(
+                &st.doc,
+                &st.edit_space(),
+                w,
+                app.session.settings.pickbox.max(1.0) * 1.5 * app.session.pointer_scale() / scale,
+            )
+            .filter(|h| st.doc.entity(*h).is_none_or(|e| !cadcraft_engine::select::preview_filtered(&st.doc, e, filter)));
             app.canvas.hover_at = hover_pos;
         }
     } else {
@@ -1750,7 +1791,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
         && app.session.shows_grips(sel.len())
         && let Ok(st) = app.session.state()
     {
-        let gs = app.session.settings.gripsize as f32;
+        let gs = grip_size(app);
         for h in sel.iter().take(200) {
             if let Some(e) = st.doc.entity(*h) {
                 for (gi, g) in e.kind.grips().into_iter().enumerate() {
@@ -1840,6 +1881,8 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     if app.ui.show_command_line {
         crate::cmdline::show(app, ui, full);
     }
+    // Touch screens: the Keyboard button and the input strip (softkeys.rs).
+    crate::softkeys::show(app, ui.ctx(), full);
     // Crosshair cursor.
     if inside {
         // Hide the OS cursor under the drawn crosshair, unless assistive tech needs it (#39).
@@ -1927,7 +1970,7 @@ fn tooltip(p: &egui::Painter, at: Pos2, text: &str) {
 /// pixels per unit), if any.
 fn hatch_at(app: &CadApp, w: Vec2, scale: f64) -> Option<Handle> {
     let st = app.session.state().ok()?;
-    let aperture = app.session.settings.pickbox.max(1.0) * 1.5 / scale.max(1e-12);
+    let aperture = app.session.settings.pickbox.max(1.0) * 1.5 * app.session.pointer_scale() / scale.max(1e-12);
     let h = cadcraft_engine::select::pick(&st.doc, &st.edit_space(), w, aperture)?;
     matches!(st.doc.entity(h)?.kind, cadcraft_doc::EntityKind::Hatch(_)).then_some(h)
 }
@@ -1953,7 +1996,7 @@ fn snap_cycle(app: &mut CadApp, raw: Vec2, ap: f64) -> Option<usize> {
 /// what the running snaps found; with none, a running snap no longer holds the cursor.
 fn override_cursor(app: &mut CadApp, raw: Vec2, xf: &Xf) {
     let over = app.session.snap_override();
-    let ap = app.session.settings.aperture / xf.scale;
+    let ap = snap_aperture(app) / xf.scale;
     let cycle = snap_cycle(app, raw, ap);
     let prompt = app.session.current_prompt();
     let wants_point = prompt.as_ref().is_some_and(cadcraft_engine::pointmod::accepts);
@@ -1988,6 +2031,17 @@ fn override_cursor(app: &mut CadApp, raw: Vec2, xf: &Xf) {
     app.session.cursor_deferred = app.canvas.snap.and_then(|h| h.deferred);
 }
 
+/// GRIPSIZE in screen points, scaled for the pointing device: a finger gets larger grips
+/// ([`cadcraft_engine::Session::pointer_scale`]).
+pub(crate) fn grip_size(app: &CadApp) -> f32 {
+    (app.session.settings.gripsize * app.session.pointer_scale()) as f32
+}
+
+/// APERTURE (the object snap target, pixels) scaled for the pointing device.
+fn snap_aperture(app: &CadApp) -> f64 {
+    app.session.settings.aperture * app.session.pointer_scale()
+}
+
 fn pickbox_half(pickbox: f64) -> Option<f32> {
     let half = (pickbox * 1.5) as f32;
     (half.is_finite() && half >= 1.0).then_some(half)
@@ -1996,7 +2050,7 @@ fn pickbox_half(pickbox: f64) -> Option<f32> {
 fn draw_crosshair(app: &CadApp, p: &egui::Painter, rect: Rect, at: Pos2, pickbox: bool) {
     let st = Stroke::new(1.0, Tokens::get().crosshair);
     let len = (rect.height() * app.session.settings.cursorsize as f32 / 100.0).max(12.0);
-    let pb = if pickbox { pickbox_half(app.session.settings.pickbox) } else { None };
+    let pb = if pickbox { pickbox_half(app.session.settings.pickbox * app.session.pointer_scale()) } else { None };
     let gap = pb.unwrap_or(0.0);
     // Along the isometric plane's axes in isometric drafting.
     if app.session.settings.isodraft {
@@ -2343,7 +2397,7 @@ fn grip_menu(app: &mut CadApp, resp: &egui::Response) {
 fn grip_at(app: &CadApp, xf: &Xf, hover: Option<Pos2>) -> Option<(Handle, usize)> {
     let hp = hover?;
     let st = app.session.state().ok()?;
-    let gs = app.session.settings.gripsize as f32 + 3.0;
+    let gs = grip_size(app) + 3.0;
     let sel = app.session.selection();
     if !app.session.shows_grips(sel.len()) {
         return None;

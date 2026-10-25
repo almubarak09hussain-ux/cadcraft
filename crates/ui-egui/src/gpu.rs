@@ -37,6 +37,18 @@ const POINT_SIZE: f32 = 1.5;
 /// How the native window presents frames (`NativeOptions::wgpu_options.surface`).
 ///
 /// The canvas hides the OS pointer and draws its own crosshair, so every frame the swapchain holds
+/// The device limits to ask `adapter_limits`'s adapter for: `requested` (egui-wgpu's choice,
+/// wgpu's defaults) where the adapter meets them, else everything the adapter supports, and in
+/// either case its largest buffers (large command previews outgrow wgpu's default 256 MiB cap).
+/// Some adapters fall short of the defaults: the iPad simulator's Metal device has 15
+/// inter-stage shader variables where the defaults ask 16, and asking for more than an adapter
+/// has fails device creation, which ended the app at launch.
+pub fn fit_limits(requested: wgpu::Limits, adapter_limits: &wgpu::Limits) -> wgpu::Limits {
+    let mut limits = if requested.check_limits(adapter_limits) { requested } else { adapter_limits.clone() };
+    limits.max_buffer_size = adapter_limits.max_buffer_size;
+    limits
+}
+
 /// back is visible as cursor lag. With FIFO (vsync) wgpu asks for one queued frame, but Vulkan
 /// clamps that to the driver's minimum swapchain size, which is three images on X11 (two frames
 /// queued behind the one on screen; Windows DX12 honours one). `low_latency` (the
@@ -797,6 +809,21 @@ mod tests {
     use super::*;
     use cadcraft_doc::Handle;
     use cadcraft_render::DPrim;
+
+    #[test]
+    fn limits_fit_an_adapter_below_the_defaults() {
+        // The iPad simulator: one inter-stage variable short of wgpu's defaults.
+        let simulator = wgpu::Limits { max_inter_stage_shader_variables: 15, max_buffer_size: 1 << 30, ..wgpu::Limits::default() };
+        let fitted = fit_limits(wgpu::Limits::default(), &simulator);
+        assert!(fitted.check_limits(&simulator), "within what the adapter has");
+        assert_eq!(fitted.max_inter_stage_shader_variables, 15);
+        assert_eq!(fitted.max_buffer_size, 1 << 30);
+        // An adapter that meets the defaults gets them, with its largest buffers.
+        let big = wgpu::Limits { max_texture_dimension_2d: 16384, max_buffer_size: 1 << 34, ..wgpu::Limits::default() };
+        let fitted = fit_limits(wgpu::Limits::default(), &big);
+        assert_eq!(fitted.max_texture_dimension_2d, wgpu::Limits::default().max_texture_dimension_2d);
+        assert_eq!(fitted.max_buffer_size, 1 << 34);
+    }
 
     #[test]
     fn surface_config_prefers_low_latency_where_asked_and_honours_override() {

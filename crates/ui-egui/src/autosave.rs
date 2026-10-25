@@ -102,6 +102,16 @@ impl CadApp {
         ctx.request_repaint();
     }
 
+    /// The host is about to be suspended (iPadOS can end a backgrounded app without warning):
+    /// autosave unsaved drawings now, so Drawing Recovery has them if the app is not resumed.
+    /// Returns how many were written (0 when autosave is off).
+    pub fn autosave_now(&mut self) -> usize {
+        #[cfg(not(target_arch = "wasm32"))]
+        return self.autosave.as_mut().map_or(0, |a| a.save_now(&self.session));
+        #[cfg(target_arch = "wasm32")]
+        0
+    }
+
     /// The app closes normally: this app's autosave files are not needed any more.
     pub fn shutdown_autosave(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]

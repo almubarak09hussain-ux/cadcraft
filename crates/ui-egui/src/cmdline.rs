@@ -252,7 +252,15 @@ pub fn keyboard(app: &mut CadApp, ctx: &egui::Context) {
     if ctx.egui_wants_keyboard_input() {
         return;
     }
-    let events = ctx.input(|i| i.events.clone());
+    // Text an input method commits (an on-screen keyboard with the IME on) is typing too.
+    let events: Vec<egui::Event> = ctx
+        .input(|i| i.events.clone())
+        .into_iter()
+        .map(|e| match e {
+            egui::Event::Ime(egui::ImeEvent::Commit(text)) => egui::Event::Text(text),
+            e => e,
+        })
+        .collect();
     let selection = app.session.selection();
     app.cmd.watch_selection(&selection);
     let mac = ctx.os() == egui::os::OperatingSystem::Mac;
@@ -395,11 +403,17 @@ fn visible_lines(app: &CadApp, canvas: Rect, bar: Rect) -> usize {
     app.ui.history_lines.min(MAX_LINES).min(available)
 }
 
-pub fn show(app: &mut CadApp, ui: &mut egui::Ui, canvas: Rect) {
-    let t = Tokens::get();
+/// Where the command line's bar sits in `canvas`.
+pub fn bar_rect(canvas: Rect) -> Rect {
     let w = (canvas.width() * 0.48).clamp(360.0, 760.0).min((canvas.width() - 8.0).max(0.0));
     let h = 24.0;
-    let bar = Rect::from_min_size(pos2(canvas.center().x - w / 2.0, canvas.bottom() - h - 10.0), vec2(w, h));
+    Rect::from_min_size(pos2(canvas.center().x - w / 2.0, canvas.bottom() - h - 10.0), vec2(w, h))
+}
+
+pub fn show(app: &mut CadApp, ui: &mut egui::Ui, canvas: Rect) {
+    let t = Tokens::get();
+    let bar = bar_rect(canvas);
+    let (w, h) = (bar.width(), bar.height());
     let p = ui.painter_at(canvas);
     history(app, ui, canvas, bar);
     // History lines above the bar (the expanded window replaces them).

@@ -15,6 +15,7 @@ shortcuts, hover, right-click.
 | Area | iPad behaviour | Where |
 |---|---|---|
 | Touch | One finger or the Apple Pencil is the pointer: a tap places a point or picks. Two fingers pan and pinch-zoom about their centre. A long press is a right-click: Enter while a command runs, otherwise the shortcut menu. Nothing the first finger does during a two-finger gesture places a point or opens a selection window. | `crates/ui-egui/src/touch.rs` (also used by the web build on touch screens) |
+| On-screen keyboard | A **Keyboard** button sits left of the command line. It opens the input strip at the top of the drawing area, clear of the system keyboard, and brings the system keyboard up. The strip shows the prompt and what is typed, has drafting keys (`@ < , . -`, Enter, Esc) and the recent commands, and Done closes it. Its keys go through the command line like hardware keystrokes. Enter is on the strip because the iPad keyboard's return key sends a line feed, which egui-winit drops (Space also ends input, as in AutoCAD). | `crates/ui-egui/src/softkeys.rs` (also on touch screens in the browser) |
 | Files | File ▸ Open… lists the drawings (DWG, DXF, DWT, SVG, LSP) in the app's Documents folder. The Files app shows that folder as **On My iPad ▸ CADCraft**: copy, AirDrop or save drawings there. Save As saves there under the chosen name. | `apps/cadcraft-ios/src/documents.rs`, `UIFileSharingEnabled` in `packaging/ios/Info.plist.in` |
 | Lifecycle | When the app goes to the background, preferences are saved and unsaved drawings are autosaved. If iPadOS ends the app, Drawing Recovery offers them at the next launch. | `Shell::save` in `apps/cadcraft-ios/src/main.rs` |
 | Storage | Settings (`app.ron`), autosave files and `support/` (startup LISP) are kept in the sandbox's `Library/Application Support/CADCraft`. | `apps/cadcraft-ios/src/paths.rs` |
@@ -72,7 +73,7 @@ Ranked. Hours are Opus 5.5 agent-hours, as in [gaps.md](gaps.md), plus a human w
 | # | Work | Est. |
 |---|---|---|
 | 1 | First run on the simulator and a device: fix what breaks at launch (surface, safe areas, keyboard), take screenshots | 2–4 + human |
-| 2 | On-screen keyboard: show it when the command line or a text field takes focus with no hardware keyboard (winit's `set_ime_allowed`), and add an accessory row with `@ < , .` Enter, Esc and recent commands | 4–8 |
+| 2 | On-screen keyboard: check the input strip on a device (keyboard shows and hides; typing reaches the command line); make the return key work (map egui-winit's dropped line feed to Enter); hide the Keyboard button while a hardware keyboard is attached | 2–4 + human |
 | 3 | Touch-sized interface: larger hit targets, grips and pick box when the last input was a finger (a `Tokens` touch scale); a command palette in place of the menu bar | 6–10 |
 | 4 | System document picker (iCloud Drive, other providers) and "Open in CADCraft" from other apps; needs UIKit bindings without `unsafe` in our code | 6–12 |
 | 5 | Apple Pencil: pressure-free precise picks, hover preview on Pencil hover (iPadOS 16+), palm rejection (touches ignored while the Pencil is down) | 4–8 |

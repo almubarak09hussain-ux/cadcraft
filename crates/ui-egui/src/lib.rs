@@ -23,6 +23,7 @@ pub mod dialogs;
 pub mod docking;
 pub mod hatchdlg;
 mod mtext_editor;
+pub mod softkeys;
 pub mod spacemouse;
 // The External References palette.
 pub mod xrefs;
@@ -214,6 +215,8 @@ pub struct CadApp {
     queued_shots: Vec<(u64, f64, u32)>,
     shot_token: u64,
     pub synthetic: Vec<egui::Event>,
+    /// The on-screen keyboard for touch screens ([`softkeys`]).
+    pub softkeys: softkeys::SoftKeys,
     /// Caps the frame rate when presenting without vsync (see [`gpu::FrameCap`]).
     #[cfg(not(target_arch = "wasm32"))]
     pub frame_cap: Option<gpu::FrameCap>,
@@ -266,6 +269,7 @@ impl CadApp {
             queued_shots: Vec::new(),
             shot_token: 0,
             synthetic: Vec::new(),
+            softkeys: softkeys::SoftKeys::default(),
             #[cfg(not(target_arch = "wasm32"))]
             frame_cap: None,
             fonts_language: None,

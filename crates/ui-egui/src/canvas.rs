@@ -1875,6 +1875,8 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     if app.ui.show_command_line {
         crate::cmdline::show(app, ui, full);
     }
+    // Touch screens: the Keyboard button and the input strip (softkeys.rs).
+    crate::softkeys::show(app, ui.ctx(), full, crate::cmdline::bar_rect(full));
     // Crosshair cursor.
     if inside {
         // Hide the OS cursor under the drawn crosshair, unless assistive tech needs it (#39).

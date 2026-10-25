@@ -105,12 +105,13 @@ mod ios {
             stencil_buffer: STENCIL_BITS,
             ..Default::default()
         };
-        // As on the desktop: large command previews outgrow wgpu's default buffer cap.
+        // Ask only for limits the adapter has (the simulator falls short of wgpu's defaults),
+        // with its largest buffers (large command previews outgrow the default cap).
         if let eframe::egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup {
             let base = std::sync::Arc::clone(&create.device_descriptor);
             create.device_descriptor = std::sync::Arc::new(move |adapter| {
                 let mut d = base(adapter);
-                d.required_limits.max_buffer_size = d.required_limits.max_buffer_size.max(adapter.limits().max_buffer_size);
+                d.required_limits = cadcraft_ui_egui::gpu::fit_limits(d.required_limits, &adapter.limits());
                 d
             });
         }

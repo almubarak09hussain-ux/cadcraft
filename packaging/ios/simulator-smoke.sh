@@ -41,14 +41,14 @@ if found:
 xcrun simctl boot "$UDID" 2>/dev/null || true # already booted is fine
 xcrun simctl bootstatus "$UDID" -b
 xcrun simctl install "$UDID" "$APP"
-# With --console-pty the launch stays attached and streams the app's standard output and error
-# (its log) into console.log; its first line is "ai.storyteller.cadcraft: <pid>". Simulator apps
-# are host processes, so the PID can be checked from here.
-xcrun simctl launch --console-pty "$UDID" "$BUNDLE_ID" >"$OUT/console.log" 2>&1 &
-CONSOLE=$!
+# The app's standard output and error (its log) go to console.log. The launch returns at once and
+# prints "ai.storyteller.cadcraft: <pid>"; simulator apps are host processes, so the PID can be
+# checked from here. (--console-pty with its output in a file printed nothing, not even the PID.)
+: >"$OUT/console.log"
+LAUNCHED="$(xcrun simctl launch --terminate-running-process --stdout="$OUT/console.log" --stderr="$OUT/console.log" "$UDID" "$BUNDLE_ID")"
+echo "$LAUNCHED"
+PID="${LAUNCHED##*: }"
 sleep "$SECONDS_UP"
-PID="$(sed -n "s/^$BUNDLE_ID: \([0-9][0-9]*\).*/\1/p" "$OUT/console.log" | head -n 1)"
-echo "launched: pid ${PID:-unknown}"
 
 xcrun simctl io "$UDID" screenshot "$OUT/launch.png" || true
 xcrun simctl spawn "$UDID" log show --last 5m --style compact --predicate 'process == "cadcraft-ios"' >"$OUT/app.log" 2>&1 || true
@@ -67,7 +67,6 @@ case "$PID" in
   '' | *[!0-9]*) ;; # launch printed no PID
   *) if kill -0 "$PID" 2>/dev/null; then ALIVE=1; fi ;;
 esac
-kill "$CONSOLE" 2>/dev/null || true
 echo "--- console (the app's own log) ---"
 tail -n 80 "$OUT/console.log" || true
 if [ "$ALIVE" != 1 ]; then

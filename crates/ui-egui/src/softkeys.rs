@@ -103,7 +103,8 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context, canvas: Rect) {
         let size = vec2(96.0, KEY_SIZE);
         let at = pos2(canvas.left() + 8.0, canvas.top() + 30.0);
         egui::Area::new(egui::Id::new("softkeys_toggle")).order(egui::Order::Foreground).fixed_pos(at).show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            // One above the other: side by side they reached the ViewCube in a narrow drawing area.
+            ui.vertical(|ui| {
                 if ui.add(egui::Button::new(crate::i18n::t("Commands")).min_size(size)).clicked() {
                     app.palette.open();
                 }

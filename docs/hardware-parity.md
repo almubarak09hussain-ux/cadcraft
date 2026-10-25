@@ -1,6 +1,6 @@
 # Hardware parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (zoom and pan regenerate in the background) · **Target:** Autodesk AutoCAD 2027 (Mac and Windows)
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-25 · **Change:** minor (iPad column; touch gestures) · **Target:** Autodesk AutoCAD 2027 (Mac and Windows)
 
 The hardware AutoCAD uses and how CADCraft compares, per platform. Work items:
 [gaps.md](gaps.md#hardware).
@@ -14,9 +14,14 @@ Measured from the source on 2026-10-10 (`crates/ui-egui/src/gpu.rs`, `canvas.rs`
 `apps/cadcraft/src/graphics.rs`, `apps/cadcraft-web`); AutoCAD's side from Autodesk's system
 requirements and graphics-performance documentation. Nothing was benchmarked in this pass.
 
+The iPad build (`apps/cadcraft-ios`, [ios.md](ios.md)) draws with wgpu on Metal like macOS. It
+has not run on a device yet, so its rows below are design, not measurement.
+
 | Feature | AutoCAD 2027 | CADCraft macOS | CADCraft Windows | CADCraft Linux / FreeBSD | CADCraft web |
 |---|---|---|---|---|---|
 | GPU canvas for 2D | yes (hardware acceleration, GPU smoothing, high-quality geometry) | wgpu on Metal | wgpu on DirectX 12 by default (`WGPU_BACKEND` overrides; GL avoided after AMD crashes, #31) | wgpu on Vulkan (or GL) | WebGPU, WebGL2 fallback |
+| Touch screen (two-finger pan, pinch zoom, long press as right-click; `touch.rs`) | AutoCAD web and mobile apps only | — | yes on touch laptops (untested) | untested | yes (untested on iPad Safari) |
+| iPad (touch, Apple Pencil as pointer, Magic Keyboard and trackpad) | AutoCAD mobile app (a viewer and light editor, not the desktop app) | — | — | — | the iPad app: same UI as the desktop; untested on a device |
 | CPU fallback | software mode | yes (`tiny-skia` rasteriser) | yes | yes | — |
 | GPU for 3D (shaded visual styles, ray-traced rendering) | yes | no (no 3D) | no | no | no |
 | Low-latency presentation | yes | vsync or low-latency via `CADCRAFT_VSYNC` | same | no vsync queue so the crosshair keeps up (#183) | browser-controlled |
@@ -48,5 +53,6 @@ next step.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-25 | minor | iPad build and touch-screen rows (two-finger pan, pinch, long press) |
 | 2026-10-13 | minor | Zoom and pan regenerate in the background: 2–4.5 s stalls down to 26–64 ms on a hatched DWG |
 | 2026-10-10 | major | First hardware parity doc: GPU backends per platform, input devices, displays, plotters |

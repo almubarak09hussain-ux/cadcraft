@@ -44,6 +44,7 @@ pub mod plotstyles;
 pub mod quick;
 pub mod shortcut_menus;
 pub mod theme;
+pub mod touch;
 pub mod viewcube;
 pub mod vpscale;
 

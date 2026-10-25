@@ -5,6 +5,7 @@
 
 mod assets;
 mod ico;
+mod ios;
 mod layers;
 mod parity;
 mod stats;
@@ -20,7 +21,10 @@ commands:
   assets          check that every icon/image/font/asset is attributed in ATTRIBUTION.md
   layers          enforce the crate dependency layering (plan/architecture.md §3)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
-  ci              fmt --check, clippy -D warnings, test, assets, layers, wasm (stops at first failure)
+  ios [--bundle] [--sim]
+                  clippy the iPad app for aarch64-apple-ios; --bundle builds CADCraft.app (macOS),
+                  --sim for the simulator (docs/ios.md)
+  ci              fmt --check, clippy -D warnings, test, assets, layers, wasm, ios (stops at first failure)
   corpus [--download]
                   show where test corpora live; --download fetches PngSuite into corpus/pngsuite
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
@@ -36,6 +40,7 @@ fn main() -> ExitCode {
         Some("assets") => assets::run(&root()),
         Some("layers") => cmd_layers(),
         Some("wasm") => cmd_wasm(),
+        Some("ios") => ios::run_cmd(&rest),
         Some("ci") => cmd_ci(),
         Some("corpus") => cmd_corpus(rest.contains(&"--download")),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
@@ -178,6 +183,7 @@ fn cmd_ci() -> Result<(), String> {
         ("assets", Box::new(|| assets::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
+        ("ios", Box::new(ios::check)),
     ];
     let mut done = Vec::new();
     for (name, f) in &steps {

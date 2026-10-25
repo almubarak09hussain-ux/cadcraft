@@ -6,7 +6,9 @@
 # Usage: packaging/ios/simulator-smoke.sh [app] [out-dir]
 #   app      default target/ios/iphonesimulator/CADCraft.app
 #   out-dir  default target/ios/smoke (launch.png, app.log, crash reports)
-# Env: SMOKE_SECONDS (default 30) how long the app must stay up; SIM_UDID picks the simulator.
+# Env: SMOKE_SECONDS (default 30) how long the app must stay up; SIM_UDID picks the simulator;
+#      SMOKE_PRINT_SCREENSHOT=1 also prints a small JPEG of the screenshot to the log, base64
+#      between BEGIN/END SCREENSHOT lines (CI, where artifacts may not be reachable).
 set -euo pipefail
 # shellcheck source=../env.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
@@ -39,16 +41,31 @@ if found:
 xcrun simctl boot "$UDID" 2>/dev/null || true # already booted is fine
 xcrun simctl bootstatus "$UDID" -b
 xcrun simctl install "$UDID" "$APP"
-xcrun simctl launch "$UDID" "$BUNDLE_ID"
+# Prints "ai.storyteller.cadcraft: <pid>". Simulator apps are host processes, so the PID can be
+# checked from here.
+LAUNCHED="$(xcrun simctl launch "$UDID" "$BUNDLE_ID")"
+echo "$LAUNCHED"
+PID="${LAUNCHED##*: }"
 sleep "$SECONDS_UP"
 
 xcrun simctl io "$UDID" screenshot "$OUT/launch.png" || true
 xcrun simctl spawn "$UDID" log show --last 5m --style compact --predicate 'process == "cadcraft-ios"' >"$OUT/app.log" 2>&1 || true
 find "$HOME/Library/Logs/DiagnosticReports" -name 'cadcraft-ios*' -exec cp {} "$OUT/" \; 2>/dev/null || true
 
-# launchctl lists the app with its PID while it runs ("-" once it has exited).
-PID="$(xcrun simctl spawn "$UDID" launchctl list | awk -v id="UIKitApplication:$BUNDLE_ID" 'index($3, id) == 1 { print $1; exit }')"
-if [ -z "$PID" ] || [ "$PID" = "-" ]; then
+if [ "${SMOKE_PRINT_SCREENSHOT:-0}" = 1 ] && [ -f "$OUT/launch.png" ]; then
+  sips -s format jpeg -s formatOptions 55 -Z 1100 "$OUT/launch.png" --out "$OUT/launch-small.jpg" >/dev/null
+  echo "BEGIN SCREENSHOT launch-small.jpg"
+  base64 -i "$OUT/launch-small.jpg" | tr -d '\n'
+  echo
+  echo "END SCREENSHOT"
+fi
+
+ALIVE=0
+case "$PID" in
+  '' | *[!0-9]*) ;; # launch printed no PID
+  *) if kill -0 "$PID" 2>/dev/null; then ALIVE=1; fi ;;
+esac
+if [ "$ALIVE" != 1 ]; then
   echo "CADCraft is not running ${SECONDS_UP}s after launch; see $OUT/app.log" >&2
   tail -n 50 "$OUT/app.log" >&2 || true
   exit 1

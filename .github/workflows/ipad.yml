@@ -61,6 +61,8 @@ jobs:
         run: cargo xtask ios --bundle --sim
       - name: Launch on an iPad simulator
         run: packaging/ios/simulator-smoke.sh
+        env:
+          SMOKE_PRINT_SCREENSHOT: "1"
       - name: Upload screenshot and logs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

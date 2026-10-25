@@ -13,7 +13,7 @@ fn harness() -> Harness<'static, CadApp> {
     app.run("new", serde_json::json!({})).unwrap();
     app.ui.start_tab = false;
     app.session.settings.dynmode = false;
-    app.softkeys.available = true;
+    app.touch_device = true;
     let mut h = Harness::builder().with_size(vec2(1366.0, 1024.0)).build_ui_state(
         |ui, app: &mut CadApp| {
             app.logic(&ui.ctx().clone());

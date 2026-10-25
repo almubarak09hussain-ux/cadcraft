@@ -21,8 +21,6 @@ use crate::theme::Tokens;
 /// Kept by the app.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SoftKeys {
-    /// The host is a touch device (the iPad app sets it): offer the keyboard before any touch.
-    pub available: bool,
     /// The input strip and the system keyboard are up.
     pub open: bool,
 }
@@ -52,9 +50,10 @@ pub const MAX_RECENT: usize = 6;
 /// Finger-sized keys: Apple's minimum hit target.
 const KEY_SIZE: f32 = 44.0;
 
-/// Whether to offer the keyboard: the host said so, or a touch has been seen.
+/// Whether to offer the keyboard: the host is a touch device ([`CadApp::touch_device`]), or a
+/// touch has been seen.
 pub fn wanted(app: &CadApp, ctx: &egui::Context) -> bool {
-    app.softkeys.available || ctx.input(|i| i.has_touch_screen())
+    app.touch_device || ctx.input(|i| i.has_touch_screen())
 }
 
 /// The commands typed most recently, newest first, each once (upper case, first word only).

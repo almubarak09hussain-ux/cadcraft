@@ -105,3 +105,16 @@ fn a_long_press_is_enter_while_a_command_runs() {
     assert!(app.session.running.is_none(), "a long press is Enter: {}", app.session.prompt_text());
     assert_eq!(app.session.doc().map(|d| d.model.handles().len()).unwrap_or_default(), 1, "the lift placed no second segment");
 }
+
+#[test]
+fn a_finger_gets_larger_pick_boxes_until_the_mouse_moves() {
+    let (mut app, ctx) = setup();
+    assert_eq!(app.session.pointer_scale(), 1.0);
+    let at = pos2(800.0, 500.0);
+    frame(&mut app, &ctx, first_down(at), 1.0);
+    frame(&mut app, &ctx, first_up(at), 1.05);
+    frame(&mut app, &ctx, Vec::new(), 1.1);
+    assert_eq!(app.session.pointer_scale(), cadcraft_ui_egui::touch::FINGER_SCALE, "after a tap");
+    frame(&mut app, &ctx, vec![Event::PointerMoved(pos2(810.0, 505.0))], 1.2);
+    assert_eq!(app.session.pointer_scale(), 1.0, "a mouse move restores PICKBOX's size");
+}

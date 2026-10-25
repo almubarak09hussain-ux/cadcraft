@@ -10,6 +10,9 @@
 //!   finger coming up after it places nothing.
 //! - When a finger lifts, egui forgets the pointer in the same frame (`PointerGone`); the tap's
 //!   position is still known as the interaction position, and the canvas uses it.
+//! - While the last input was a finger, pick boxes, grips and snap targets are
+//!   [`FINGER_SCALE`] times their size ([`cadcraft_engine::Session::set_pointer_scale`]); moving a
+//!   mouse or trackpad pointer brings them back.
 
 use egui::{Pos2, Vec2};
 
@@ -17,12 +20,18 @@ use egui::{Pos2, Vec2};
 /// reported finger distance can't fling the view.
 const MAX_FRAME_ZOOM: f32 = 4.0;
 
+/// How much larger pick boxes, grips and snap targets are for a finger: PICKBOX 3 picks within
+/// about 11 points of the touch, GRIPSIZE 5 grips are 25 points across.
+pub const FINGER_SCALE: f64 = 2.5;
+
 /// Kept across frames by the canvas.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Touch {
     /// A gesture (several fingers, or a long press) started and a finger is still down: the
     /// pointer's clicks and drags don't count.
     claimed: bool,
+    /// The last pointer input was a finger (not a mouse, trackpad or pen hovering).
+    finger: bool,
 }
 
 /// What touch input means for the canvas this frame.
@@ -39,9 +48,21 @@ pub struct TouchFrame {
 }
 
 impl Touch {
+    /// Whether the last pointer input was a finger.
+    pub fn finger(&self) -> bool {
+        self.finger
+    }
+
     /// Read this frame's touch input. `long_touched` is the canvas response's `long_touched()`.
     pub fn update(&mut self, i: &egui::InputState, long_touched: bool) -> TouchFrame {
         let touch_events = i.raw.events.iter().any(|e| matches!(e, egui::Event::Touch { .. }));
+        // egui-winit moves the pointer with the first finger in the same frame as its touch, so
+        // a pointer move without one is a mouse or trackpad.
+        if touch_events {
+            self.finger = true;
+        } else if i.raw.events.iter().any(|e| matches!(e, egui::Event::PointerMoved(_) | egui::Event::MouseWheel { .. })) {
+            self.finger = false;
+        }
         let gesture = i.multi_touch().filter(|m| m.num_touches >= 2).map(|m| {
             let zoom = if m.zoom_delta.is_finite() && m.zoom_delta > 0.0 { m.zoom_delta.clamp(1.0 / MAX_FRAME_ZOOM, MAX_FRAME_ZOOM) } else { 1.0 };
             let pan = if m.translation_delta.is_finite() { m.translation_delta } else { Vec2::ZERO };
@@ -154,6 +175,20 @@ mod tests {
         assert!(got.secondary && got.suppress_primary);
         let f = frame(&ctx, &mut t, up(1, pos2(10.0, 10.0), true));
         assert!(f.suppress_primary && !f.secondary);
+    }
+
+    #[test]
+    fn a_finger_until_the_mouse_moves() {
+        let ctx = egui::Context::default();
+        let mut t = Touch::default();
+        assert!(!t.finger());
+        frame(&ctx, &mut t, down(1, pos2(10.0, 10.0), true));
+        assert!(t.finger());
+        frame(&ctx, &mut t, up(1, pos2(10.0, 10.0), true));
+        frame(&ctx, &mut t, Vec::new());
+        assert!(t.finger(), "still a finger after it lifts");
+        frame(&ctx, &mut t, vec![Event::PointerMoved(pos2(20.0, 20.0))]);
+        assert!(!t.finger(), "a mouse move is not a finger");
     }
 
     #[test]

@@ -1189,8 +1189,7 @@ fn effective_point(app: &mut CadApp, raw: Vec2, xf: &Xf, ctx: &egui::Context) ->
         return raw;
     }
     let (now, shift) = ctx.input(|i| (i.time, i.modifiers.shift));
-    let q =
-        snap::tracking::CursorQuery { base, deferred, corner, aperture: app.session.settings.aperture / xf.scale, tol: 6.0 / xf.scale, now, shift };
+    let q = snap::tracking::CursorQuery { base, deferred, corner, aperture: snap_aperture(app) / xf.scale, tol: 6.0 / xf.scale, now, shift };
     let r = app.session.snap_cursor(raw, &q);
     if r.wait {
         ctx.request_repaint_after(std::time::Duration::from_secs_f64(snap::tracking::DWELL / 4.0));
@@ -1262,6 +1261,8 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     // Touch: two fingers pan and pinch, a long press is a right-click, and a tap is where the
     // finger lifted; the pointer's clicks during a gesture place nothing (touch.rs).
     let touch = ui.input(|i| app.canvas.touch.update(i, resp.long_touched()));
+    // A finger gets larger pick boxes, grips and snap targets than a mouse or pen.
+    app.session.set_pointer_scale(if app.canvas.touch.finger() { crate::touch::FINGER_SCALE } else { 1.0 });
     let hover_pos = hover_pos.or(touch.lifted_at);
     let pressed_primary = pressed_primary && !touch.suppress_primary;
     let inside = hover_pos.is_some_and(|p| rect.contains(p)) && resp.hovered();
@@ -1617,8 +1618,13 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
             && let (Some(w), Ok(st)) = (raw_world, app.session.state())
         {
             let filter = app.session.settings.previewfilter;
-            app.canvas.hover = cadcraft_engine::select::pick(&st.doc, &st.edit_space(), w, app.session.settings.pickbox.max(1.0) * 1.5 / scale)
-                .filter(|h| st.doc.entity(*h).is_none_or(|e| !cadcraft_engine::select::preview_filtered(&st.doc, e, filter)));
+            app.canvas.hover = cadcraft_engine::select::pick(
+                &st.doc,
+                &st.edit_space(),
+                w,
+                app.session.settings.pickbox.max(1.0) * 1.5 * app.session.pointer_scale() / scale,
+            )
+            .filter(|h| st.doc.entity(*h).is_none_or(|e| !cadcraft_engine::select::preview_filtered(&st.doc, e, filter)));
             app.canvas.hover_at = hover_pos;
         }
     } else {
@@ -1785,7 +1791,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
         && app.session.shows_grips(sel.len())
         && let Ok(st) = app.session.state()
     {
-        let gs = app.session.settings.gripsize as f32;
+        let gs = grip_size(app);
         for h in sel.iter().take(200) {
             if let Some(e) = st.doc.entity(*h) {
                 for (gi, g) in e.kind.grips().into_iter().enumerate() {
@@ -1964,7 +1970,7 @@ fn tooltip(p: &egui::Painter, at: Pos2, text: &str) {
 /// pixels per unit), if any.
 fn hatch_at(app: &CadApp, w: Vec2, scale: f64) -> Option<Handle> {
     let st = app.session.state().ok()?;
-    let aperture = app.session.settings.pickbox.max(1.0) * 1.5 / scale.max(1e-12);
+    let aperture = app.session.settings.pickbox.max(1.0) * 1.5 * app.session.pointer_scale() / scale.max(1e-12);
     let h = cadcraft_engine::select::pick(&st.doc, &st.edit_space(), w, aperture)?;
     matches!(st.doc.entity(h)?.kind, cadcraft_doc::EntityKind::Hatch(_)).then_some(h)
 }
@@ -1990,7 +1996,7 @@ fn snap_cycle(app: &mut CadApp, raw: Vec2, ap: f64) -> Option<usize> {
 /// what the running snaps found; with none, a running snap no longer holds the cursor.
 fn override_cursor(app: &mut CadApp, raw: Vec2, xf: &Xf) {
     let over = app.session.snap_override();
-    let ap = app.session.settings.aperture / xf.scale;
+    let ap = snap_aperture(app) / xf.scale;
     let cycle = snap_cycle(app, raw, ap);
     let prompt = app.session.current_prompt();
     let wants_point = prompt.as_ref().is_some_and(cadcraft_engine::pointmod::accepts);
@@ -2025,6 +2031,17 @@ fn override_cursor(app: &mut CadApp, raw: Vec2, xf: &Xf) {
     app.session.cursor_deferred = app.canvas.snap.and_then(|h| h.deferred);
 }
 
+/// GRIPSIZE in screen points, scaled for the pointing device: a finger gets larger grips
+/// ([`cadcraft_engine::Session::pointer_scale`]).
+pub(crate) fn grip_size(app: &CadApp) -> f32 {
+    (app.session.settings.gripsize * app.session.pointer_scale()) as f32
+}
+
+/// APERTURE (the object snap target, pixels) scaled for the pointing device.
+fn snap_aperture(app: &CadApp) -> f64 {
+    app.session.settings.aperture * app.session.pointer_scale()
+}
+
 fn pickbox_half(pickbox: f64) -> Option<f32> {
     let half = (pickbox * 1.5) as f32;
     (half.is_finite() && half >= 1.0).then_some(half)
@@ -2033,7 +2050,7 @@ fn pickbox_half(pickbox: f64) -> Option<f32> {
 fn draw_crosshair(app: &CadApp, p: &egui::Painter, rect: Rect, at: Pos2, pickbox: bool) {
     let st = Stroke::new(1.0, Tokens::get().crosshair);
     let len = (rect.height() * app.session.settings.cursorsize as f32 / 100.0).max(12.0);
-    let pb = if pickbox { pickbox_half(app.session.settings.pickbox) } else { None };
+    let pb = if pickbox { pickbox_half(app.session.settings.pickbox * app.session.pointer_scale()) } else { None };
     let gap = pb.unwrap_or(0.0);
     // Along the isometric plane's axes in isometric drafting.
     if app.session.settings.isodraft {
@@ -2380,7 +2397,7 @@ fn grip_menu(app: &mut CadApp, resp: &egui::Response) {
 fn grip_at(app: &CadApp, xf: &Xf, hover: Option<Pos2>) -> Option<(Handle, usize)> {
     let hp = hover?;
     let st = app.session.state().ok()?;
-    let gs = app.session.settings.gripsize as f32 + 3.0;
+    let gs = grip_size(app) + 3.0;
     let sel = app.session.selection();
     if !app.session.shows_grips(sel.len()) {
         return None;

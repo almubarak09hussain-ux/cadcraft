@@ -75,7 +75,7 @@ fn hit(xf: &Xf, g: &DynGrip, gs: f32, p: Pos2) -> bool {
 /// being dragged hot.
 pub(crate) fn draw(app: &mut CadApp, painter: &Painter, xf: &Xf, rect: Rect, hover: Option<Pos2>) {
     let t = Tokens::get();
-    let gs = app.session.settings.gripsize as f32;
+    let gs = crate::canvas::grip_size(app);
     let hot = app.canvas.dyn_hot;
     for (h, g) in of_selection(app).iter() {
         if !rect.contains(xf.to_screen(g.at)) {
@@ -98,7 +98,7 @@ pub(crate) fn draw(app: &mut CadApp, painter: &Painter, xf: &Xf, rect: Rect, hov
 /// The dynamic grip under `hover`, if any: (reference, grip).
 pub(crate) fn at(app: &mut CadApp, xf: &Xf, hover: Option<Pos2>) -> Option<(Handle, DynGrip)> {
     let p = hover?;
-    let gs = app.session.settings.gripsize as f32;
+    let gs = crate::canvas::grip_size(app);
     of_selection(app).iter().find(|(_, g)| hit(xf, g, gs, p)).cloned()
 }
 
@@ -128,7 +128,7 @@ pub(crate) fn menu(app: &mut CadApp, ctx: &egui::Context, xf: &Xf) {
         .and_then(|(_, ps)| ps.into_iter().find(|p| p.name.eq_ignore_ascii_case(&g.property)))
         .map(|p| p.value)
         .unwrap_or_default();
-    let gs = app.session.settings.gripsize as f32;
+    let gs = crate::canvas::grip_size(app);
     let at = xf.to_screen(g.at) + vec2(-gs, gs * 1.5);
     let mut chosen: Option<String> = None;
     let area = egui::Area::new(egui::Id::new(("dyn-grip-list", h, g.node))).order(egui::Order::Foreground).fixed_pos(at).show(ctx, |ui| {

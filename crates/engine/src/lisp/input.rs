@@ -132,7 +132,7 @@ impl GetRequest {
                 self.check_number(d, false)
             }
             GetKind::EntSel => {
-                let ap = s.settings.pickbox.max(1.0) * s.pixel_size();
+                let ap = s.settings.pickbox.max(1.0) * s.pixel_size() * s.pointer_scale();
                 let space = s.state().map(|st| st.edit_space()).map_err(|e| Again::Msg(e.to_string()))?;
                 let d = s.doc().map_err(|e| Again::Msg(e.to_string()))?;
                 match crate::select::pick(d, &space, Vec2::new(p[0], p[1]), ap) {

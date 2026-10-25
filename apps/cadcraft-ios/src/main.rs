@@ -121,8 +121,9 @@ mod ios {
                     pick_save: Some(Box::new(move |name: &str| Some(documents::save_path(&save_dir, name).to_string_lossy().into_owned()))),
                 };
                 let mut app = CadApp::new(Session::empty(), services);
-                // A touch device: the Keyboard button is there before the first touch.
-                app.softkeys.available = true;
+                // A touch device: finger-sized controls, and the Keyboard button before the
+                // first touch.
+                app.touch_device = true;
                 app.system_languages = std::env::var("CADCRAFT_LOCALE").map(|s| vec![s]).unwrap_or_default();
                 if let Some(profile) = cc.storage.and_then(|s| s.get_string(cadcraft_ui_egui::options::PROFILE_KEY)) {
                     app.load_profile(&profile);

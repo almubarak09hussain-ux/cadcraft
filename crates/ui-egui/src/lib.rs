@@ -226,6 +226,11 @@ pub struct CadApp {
     shown_theme: Option<egui::Theme>,
     /// Whether the last applied theme was handed to egui as the System preference.
     shown_follows_system: bool,
+    /// Whether the finger-sized spacing was last installed ([`theme::apply_touch`]).
+    shown_touch: bool,
+    /// The host is a touch device (the iPad app sets it): finger-sized controls, and the
+    /// on-screen keyboard is offered before the first touch ([`softkeys`]).
+    pub touch_device: bool,
     /// Whether egui was last told to animate (`None` until the first frame).
     shown_animations: Option<bool>,
     pub frame_ms: f64,
@@ -275,6 +280,8 @@ impl CadApp {
             fonts_language: None,
             shown_theme: None,
             shown_follows_system: false,
+            shown_touch: false,
+            touch_device: false,
             shown_animations: None,
             frame_ms: 0.0,
             quit_requested: false,
@@ -552,8 +559,12 @@ impl CadApp {
         theme::set_active(shown);
         theme::set_canvas(self.options.canvas());
         let follows_system = self.ui.theme == theme::ThemePref::System;
-        if self.shown_theme != Some(shown) || self.shown_follows_system != follows_system {
+        if self.shown_theme != Some(shown) || self.shown_follows_system != follows_system || self.shown_touch != self.touch_device {
             theme::apply(ctx, shown, follows_system);
+            if self.touch_device {
+                theme::apply_touch(ctx);
+            }
+            self.shown_touch = self.touch_device;
             self.shown_theme = Some(shown);
             self.shown_follows_system = follows_system;
         }

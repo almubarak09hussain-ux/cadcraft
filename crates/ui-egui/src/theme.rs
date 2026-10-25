@@ -679,6 +679,18 @@ pub fn apply(ctx: &egui::Context, theme: Theme, follow_system: bool) {
     });
 }
 
+/// Finger-sized controls for touch devices (the iPad app): taller rows and buttons, more space
+/// between them and wider scroll bars. Installed after [`apply`].
+pub fn apply_touch(ctx: &egui::Context) {
+    ctx.all_styles_mut(|s| {
+        s.spacing.item_spacing = egui::vec2(8.0, 6.0);
+        s.spacing.button_padding = egui::vec2(10.0, 7.0);
+        s.spacing.interact_size.y = 32.0;
+        s.spacing.icon_width = 20.0;
+        s.spacing.scroll.bar_width = 12.0;
+    });
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

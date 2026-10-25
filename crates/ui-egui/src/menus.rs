@@ -21,6 +21,7 @@ pub const UI_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
     ("ui.dock", "Arrange Panel", &[], None),
     ("ui.dock.reset", "Reset Panel Layout", &["Window", "Reset Panel Layout"], None),
     ("ui.open", "Open...", &[], Some("Cmd+O")),
+    ("ui.palette", "Command Palette", &[], Some("Cmd+Shift+P")),
     ("ui.newtemplate", "New from Template...", &["File", "New from Template..."], None),
     ("ui.saveas", "Save As...", &[], None),
     ("ui.sample", "Open Sample Drawing", &["Help", "Open Sample Drawing"], None),
@@ -345,6 +346,10 @@ fn run_ui_command_inner(app: &mut CadApp, id: &str, params: &Value) -> Option<Re
             app.ui.dialog = Some(id.trim_start_matches("ui.dialog.").to_string());
             Ok(Value::Null)
         }
+        "ui.palette" => {
+            app.palette.open();
+            Ok(Value::Null)
+        }
         "ui.dialog.close" => {
             app.ui.dialog = None;
             Ok(Value::Null)
@@ -605,6 +610,7 @@ pub fn shortcuts(app: &mut CadApp, ctx: &egui::Context) {
         (sc(cmd, Key::O), "ui.open"),
         (sc(cmd_shift, Key::S), "ui.saveas"),
         (sc(cmd, Key::S), "qsave"),
+        (sc(cmd_shift, Key::P), "ui.palette"),
         (sc(cmd, Key::P), "plot"),
         (sc(cmd, Key::A), "selectall"),
         (sc(cmd_shift, Key::C), "copybase"),

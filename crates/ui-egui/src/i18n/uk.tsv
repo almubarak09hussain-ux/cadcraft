@@ -1330,3 +1330,16 @@
 	Justify	За шириною
 	Text color	Колір тексту
 	Click the ruler to add a tab stop, right-click to remove one	Натисніть на лінійку, щоб додати табуляцію; права кнопка видаляє її
+# iPad and touch screens: the command palette, the on-screen keyboard strip, the Documents list.
+	Command Palette	Палітра команд
+	Commands	Команди
+	Search commands	Пошук команд
+	No command matches.	Жодна команда не відповідає.
+	Keyboard	Клавіатура
+	Done	Готово
+	Esc	Esc
+	Command: 	Команда: 
+	Open Drawing	Відкрити креслення
+	Refresh	Оновити
+	No drawings yet.	Креслень ще немає.
+	Drawings in On My iPad ▸ CADCraft (copy files there with the Files app).	Креслення в «На iPad ▸ CADCraft» (копіюйте туди файли в застосунку «Файли»).

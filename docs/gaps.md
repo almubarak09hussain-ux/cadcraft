@@ -123,7 +123,7 @@ Detail: [localization-parity.md](localization-parity.md).
 | P1 | Web build: plot shows raw PDF bytes (#134), no DWG (File > Open and save downloads fixed, #55, #133) | 3–5 |
 | P2 | Windows and Linux get little runtime testing; Linux Mint mouse delay (#25); Windows magnifier (#39) | 6–10 |
 | P3 | macOS file associations: opening `.dxf` from Finder fails (#158) | 1–2 |
-| P4 | iPad (`apps/cadcraft-ios`, [ios.md](ios.md)): builds and type-checks for iPadOS, with touch gestures, finger-sized picks, grips and controls, an on-screen keyboard strip (drafting keys, recent commands), the Documents folder and autosave on suspend; a simulator smoke test in CI; never run on a device; no command palette, system document picker or App Store packaging | 19–40 + human |
+| P4 | iPad (`apps/cadcraft-ios`, [ios.md](ios.md)): builds and type-checks for iPadOS, with touch gestures, finger-sized picks, grips and controls, a command palette, an on-screen keyboard strip (drafting keys, recent commands), the Documents folder and autosave on suspend; a simulator smoke test in CI; never run on a device; no system document picker or App Store packaging | 16–36 + human |
 
 ## Ecosystem and automation
 
@@ -146,6 +146,7 @@ Detail: [localization-parity.md](localization-parity.md).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-25 | minor | Command palette (`ui.palette`, Ctrl/Cmd+Shift+P, the Commands button on touch screens): search every menu command by name, alias, label or menu path: P4 narrowed |
 | 2026-10-25 | minor | Finger-sized pick boxes, grips and snap targets while the last input was a finger (`Session::set_pointer_scale`), and finger-sized controls on touch devices: P4 narrowed |
 | 2026-10-25 | minor | On-screen keyboard for touch screens: a Keyboard button and an input strip with drafting keys and recent commands (softkeys.rs): P4 narrowed |
 | 2026-10-25 | minor | iPad app shell (`apps/cadcraft-ios`, `cargo xtask ios` in CI) and touch gestures on the canvas (two-finger pan and pinch, long press as right-click): P4 added |

@@ -97,12 +97,18 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context, canvas: Rect, bar: Rect) {
     }
     let t = Tokens::get();
     if !app.softkeys.open {
-        let size = vec2(88.0, bar.height().max(KEY_SIZE));
-        let at = pos2((bar.left() - size.x - 8.0).max(canvas.left() + 4.0), bar.bottom() - size.y);
+        // Keyboard, and Commands (the command palette: the menu bar is too small for a finger).
+        let size = vec2(96.0, bar.height().max(KEY_SIZE));
+        let at = pos2((bar.left() - 2.0 * size.x - 16.0).max(canvas.left() + 4.0), bar.bottom() - size.y);
         egui::Area::new(egui::Id::new("softkeys_toggle")).order(egui::Order::Foreground).fixed_pos(at).show(ctx, |ui| {
-            if ui.add(egui::Button::new(crate::i18n::t("Keyboard")).min_size(size)).clicked() {
-                app.softkeys.open = true;
-            }
+            ui.horizontal(|ui| {
+                if ui.add(egui::Button::new(crate::i18n::t("Commands")).min_size(size)).clicked() {
+                    app.palette.open();
+                }
+                if ui.add(egui::Button::new(crate::i18n::t("Keyboard")).min_size(size)).clicked() {
+                    app.softkeys.open = true;
+                }
+            });
         });
         return;
     }

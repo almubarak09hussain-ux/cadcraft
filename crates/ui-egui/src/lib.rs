@@ -39,6 +39,7 @@ pub mod managers;
 pub mod menus;
 pub mod opening;
 pub mod options;
+pub mod palette;
 pub mod palettes;
 pub mod parametric;
 pub mod plotstyles;
@@ -217,6 +218,8 @@ pub struct CadApp {
     pub synthetic: Vec<egui::Event>,
     /// The on-screen keyboard for touch screens ([`softkeys`]).
     pub softkeys: softkeys::SoftKeys,
+    /// The command palette ([`palette`]).
+    pub palette: palette::Palette,
     /// Caps the frame rate when presenting without vsync (see [`gpu::FrameCap`]).
     #[cfg(not(target_arch = "wasm32"))]
     pub frame_cap: Option<gpu::FrameCap>,
@@ -275,6 +278,7 @@ impl CadApp {
             shot_token: 0,
             synthetic: Vec::new(),
             softkeys: softkeys::SoftKeys::default(),
+            palette: palette::Palette::default(),
             #[cfg(not(target_arch = "wasm32"))]
             frame_cap: None,
             fonts_language: None,
@@ -653,6 +657,7 @@ impl CadApp {
             }
         });
         dialogs::show(self, ui.ctx());
+        palette::show(self, ui.ctx());
         palettes::patterns::prompt_picker(self, ui.ctx());
         closing::prompt(self, ui.ctx());
         autosave::show(self, ui.ctx());

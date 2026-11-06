@@ -83,7 +83,7 @@ early (#175), but the throughput problem remains. **DWG ≈ 30% read, ≈ 15% wr
 | SOLID, TRACE, 3DFACE | yes | yes | |
 | ACAD_TABLE | yes | yes (entity + block) | |
 | VIEWPORT | yes | yes; frozen-layer lists kept (#150), also as standard group 341 layer handles that other programs read | DWG: the DXF→DWG converter does not yet write group 341 (frozen layers survive a CADCraft round trip via xdata); VP layer colour overrides lost (#99, PR #197) |
-| IMAGE | yes, with IMAGEDEF | yes, with IMAGEDEF and IMAGEDEF_REACTOR | no attach command or display of the picture yet (FF10) |
+| IMAGE | yes, with IMAGEDEF | yes, with IMAGEDEF and IMAGEDEF_REACTOR | pictures load from their files (desktop: as saved or beside the drawing; web: Insert ▸ Reload Image Files) and show on screen, in PDF and PNG plots; PNG and JPEG only |
 | WIPEOUT | yes | yes (#147, fixes #79) | |
 | MLINE (+ MLINESTYLE), HELIX, TOLERANCE | yes (#510, #420) | yes | |
 | REGION | other programs' REGIONs (ACIS data) kept as Unknown | our regions are written as closed polylines tagged with CADCraft xdata (#510; ACIS has no public spec) | |
@@ -109,7 +109,7 @@ early (#175), but the throughput problem remains. **DWG ≈ 30% read, ≈ 15% wr
 | DWS standards | open, save, CHECKSTANDARDS | no | 6–10 |
 | PDF output (PLOT, EXPORTPDF) | multi-sheet, layers, searchable text, hyperlinks | vector PDF with lineweights, real text in embedded TrueType subsets, layers (OCG), several sheets per file and hyperlinks (#567, #571); object transparency as PDF alpha when "Plot transparency" is on (the option isn't saved in DXF/DWG: no public plot layout flag) | 1–2 |
 | PDF import (PDFIMPORT) and PDF underlays (PDFATTACH) | yes | no | 15–25 |
-| Raster images attach (PNG, JPEG, TIFF, BMP …) | yes | IMAGE entity exists, no attach/loading/display path | 6–10 |
+| Raster images attach (PNG, JPEG, TIFF, BMP …) | yes | IMAGEATTACH (Insert ▸ Raster Image Reference) and IMAGELOAD for PNG and JPEG; shown on screen and plotted (PDF image objects, PNG); brightness, contrast, fade and clip boundaries applied; no TIFF/BMP, no IMAGEADJUST dialog yet | 2–4 |
 | PNG / JPEG / BMP / TIFF export | PNGOUT, JPGOUT, BMPOUT, TIFOUT | PNG; SVG too (AutoCAD doesn't export SVG) | 1–2 |
 | DWF/DWFx export, DWF underlay | yes | no | 10–15 |
 | DGN import/export/underlay | yes | no (needs a public spec; owner decision) | 25–40 |
@@ -137,6 +137,7 @@ our output in AutoCAD black-box.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-07 | minor | Raster images: IMAGEATTACH and IMAGELOAD (PNG, JPEG) attach pictures by file reference, as AutoCAD does; pictures show on screen and in PDF and PNG plots; a reopened drawing reloads them from their files (desktop) or Insert ▸ Reload Image Files (web) |
 | 2026-11-06 | minor | Web build opens and saves DWG (was DXF only): the DWG converter runs in a Web Worker, one per file; the file picker no longer filters by type on touch devices, where iPadOS greyed DWG files out |
 | 2026-10-12 | minor | PDF output: object transparency plotted as PDF alpha (`/ExtGState` `/ca` `/CA`) when the page setup's or the plot's "Plot transparency" is on; PNG plots blend it, SVG uses `opacity`; plots without it are unchanged byte for byte |
 | 2026-10-12 | minor | DXF/DWG save: the Model layout's plot settings are written as CADCraft plots model space, drawing extents scaled to fit (PLOTSETTINGS 74 = 1, 75 = 0), instead of plot type 5 "Layout information", which other programs' Plot dialogs can't use for model space |

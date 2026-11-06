@@ -887,6 +887,25 @@ fn image_fifty() -> u8 {
 fn image_pixel() -> Vec2 {
     Vec2::new(1.0, 1.0)
 }
+impl Image {
+    /// The image's corners in drawing units: lower left (the insertion point), lower right,
+    /// upper right, upper left.
+    pub fn corners(&self) -> [Vec2; 4] {
+        let o = self.insert.xy();
+        let u = self.u.xy() * self.size.x;
+        let v = self.v.xy() * self.size.y;
+        [o, o + u, o + u + v, o + v]
+    }
+
+    /// The point of the image at pixel coordinates `p` (origin at the top-left corner of the
+    /// picture, y down), as clip boundaries give them.
+    pub fn pixel_point(&self, p: Vec2) -> Vec2 {
+        // Pixel centres sit half a pixel in from the edge in DXF's clip coordinates.
+        let o = self.insert.xy();
+        o + self.u.xy() * (p.x + 0.5) + self.v.xy() * (self.size.y - (p.y + 0.5))
+    }
+}
+
 impl Default for Image {
     fn default() -> Self {
         Image {
@@ -1168,7 +1187,11 @@ impl EntityKind {
                 .flat_map(|l| l.windows(2).filter_map(|w| Some(Prim::Seg(Segment::Line(GLine::new(w.first()?.xy(), w.get(1)?.xy()))))))
                 .chain(m.block.iter().map(|b| Prim::Point(b.insert.xy())))
                 .collect(),
-            EntityKind::Image(i) => vec![Prim::Point(i.insert.xy())],
+            // The image's frame: it is picked by its edges, as AutoCAD's is.
+            EntityKind::Image(i) => {
+                let c = i.corners();
+                (0..4).filter_map(|k| Some(Prim::Seg(Segment::Line(GLine::new(*c.get(k)?, *c.get((k + 1) % 4)?))))).collect()
+            }
             EntityKind::Table(t) => vec![Prim::Point(t.insert.xy())],
             EntityKind::Tolerance(t) => vec![Prim::Point(t.insert.xy())],
             EntityKind::Unknown(_) => Vec::new(),

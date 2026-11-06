@@ -18,6 +18,8 @@ mod gripcmds;
 mod griphot;
 pub(crate) mod groups;
 pub(crate) mod hatch;
+/// Raster images: IMAGELOAD and IMAGEATTACH.
+pub mod image;
 mod inquiry;
 mod layer;
 mod layout;
@@ -193,6 +195,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(layer::specs());
         v.extend(layout::specs());
         v.extend(exchange::specs());
+        v.extend(image::specs());
         v.extend(props::specs());
         v.extend(inquiry::specs());
         v.extend(settings::specs());

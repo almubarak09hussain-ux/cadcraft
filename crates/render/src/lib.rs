@@ -98,6 +98,43 @@ pub struct DisplayList {
     /// Plot style end, join and fill style per primitive (parallel to `prims`; missing entries
     /// are "use object"), turned into geometry by [`pen::apply`].
     pub pens: Vec<Pen>,
+    /// Raster images whose pictures are loaded ([`cadcraft_doc::Drawing::rasters`]), drawn under
+    /// the primitives, in drawing order.
+    pub images: Vec<DImage>,
+}
+
+/// A raster image in a display list: the triangles it covers (its clip boundary and any
+/// viewport already applied) and where the picture lies, in the list's coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DImage {
+    pub handle: Handle,
+    /// The picture's file: its key in [`cadcraft_doc::Drawing::rasters`].
+    pub path: String,
+    /// The picture's lower-left corner and its whole width and height as vectors.
+    pub origin: Vec2,
+    pub u: Vec2,
+    pub v: Vec2,
+    /// Triangles (three points each) showing the picture.
+    pub tris: Vec<Vec2>,
+    /// Brightness, contrast and fade (0..=100), as [`cadcraft_doc::raster::Raster::adjusted`].
+    pub brightness: u8,
+    pub contrast: u8,
+    pub fade: u8,
+}
+
+impl DImage {
+    /// The texture coordinate of point `p`: (0, 0) is the picture's top-left corner, (1, 1) its
+    /// bottom-right.
+    pub fn uv(&self, p: Vec2) -> Vec2 {
+        let det = self.u.x * self.v.y - self.u.y * self.v.x;
+        if det.abs() < 1e-300 || !det.is_finite() {
+            return Vec2::ZERO;
+        }
+        let d = p - self.origin;
+        let a = (d.x * self.v.y - d.y * self.v.x) / det;
+        let b = (self.u.x * d.y - self.u.y * d.x) / det;
+        Vec2::new(a, 1.0 - b)
+    }
 }
 
 /// A glyph of plotted text: the font glyph and, in world coordinates, where it sits. It is
@@ -594,6 +631,7 @@ fn append(dst: &mut DisplayList, src: DisplayList) {
         t
     }));
     dst.pens.extend(src.pens);
+    dst.images.extend(src.images);
     dst.bounds = dst.bounds.union(&src.bounds);
     dst.expanded = dst.expanded.saturating_add(src.expanded);
 }
@@ -808,6 +846,16 @@ enum Clip<'a> {
 
 /// Append `src` to `dst`, clipped to `clip`.
 fn append_clipped(dst: &mut DisplayList, src: &DisplayList, clip: &Clip) {
+    for im in &src.images {
+        let tris = match clip {
+            Clip::Rect(rect) => clip::clip_triangles(&im.tris, rect),
+            Clip::Poly(c) => c.clip_triangles(&im.tris),
+        };
+        if tris.len() >= 3 {
+            tris.iter().for_each(|q| dst.bounds.add(*q));
+            dst.images.push(DImage { tris, ..im.clone() });
+        }
+    }
     for p in &src.prims {
         let pts = src.points(p);
         match (p.kind, clip) {
@@ -856,6 +904,41 @@ fn append_clipped(dst: &mut DisplayList, src: &DisplayList, clip: &Clip) {
             }
         }
     }
+}
+
+/// Add image `i`'s picture to the list: its quad, cut to its clip boundary when that is on.
+fn image(b: &mut Builder, ctx: &Ctx, i: &cadcraft_doc::Image) {
+    let [o, ou, ouv, ov] = i.corners().map(|q| ctx.xf.apply(q));
+    if ![o, ou, ouv, ov].iter().all(|q| q.is_finite()) {
+        return;
+    }
+    let mut tris = vec![o, ou, ouv, o, ouv, ov];
+    // The clip boundary (pixel coordinates; two corners for a rectangle) when clipping is on.
+    if i.clipping && i.display & 4 != 0 && i.clip.len() >= 2 {
+        let pts: Vec<Vec2> = match i.clip.as_slice() {
+            [a, c] => vec![*a, Vec2::new(c.x, a.y), *c, Vec2::new(a.x, c.y)],
+            many => many.to_vec(),
+        };
+        let poly: Vec<Vec2> = pts.iter().map(|p| ctx.xf.apply(i.pixel_point(*p))).collect();
+        if let Some(c) = clip::PolyClip::new(&poly) {
+            tris = c.clip_triangles(&tris);
+        }
+    }
+    if tris.len() < 3 {
+        return;
+    }
+    tris.iter().for_each(|q| b.list.bounds.add(*q));
+    b.list.images.push(DImage {
+        handle: ctx.top,
+        path: i.path.clone(),
+        origin: o,
+        u: ou - o,
+        v: ov - o,
+        tris,
+        brightness: i.brightness,
+        contrast: i.contrast,
+        fade: i.fade,
+    });
 }
 
 fn push_raw(dst: &mut DisplayList, p: &DPrim, kind: Kind, pts: &[Vec2]) {
@@ -1188,12 +1271,20 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
             }
         }
         EntityKind::Image(i) => {
-            let o = i.insert.xy();
-            let u = i.u.xy() * i.size.x;
-            let v = i.v.xy() * i.size.y;
-            b.polyline(ctx, rgb, lw, &[o, o + u, o + u + v, o + v, o]);
-            b.polyline(ctx, rgb, lw, &[o, o + u + v]);
-            b.polyline(ctx, rgb, lw, &[o + u, o + v]);
+            let [o, ou, ouv, ov] = i.corners();
+            // The picture, when it is loaded and shown (display flag 1).
+            let shown = i.display & 1 != 0 && ctx.d.rasters.contains(&i.path);
+            if shown {
+                image(b, ctx, i);
+            } else {
+                // A picture that isn't loaded shows as its frame crossed out, as AutoCAD's do.
+                b.polyline(ctx, rgb, lw, &[o, ouv]);
+                b.polyline(ctx, rgb, lw, &[ou, ov]);
+            }
+            // The frame: shown on screen, plotted only for a missing picture (IMAGEFRAME 2).
+            if !shown || !b.plotting {
+                b.polyline(ctx, rgb, lw, &[o, ou, ouv, ov, o]);
+            }
         }
         EntityKind::Table(t) => table(b, ctx, t, rgb, lw),
         EntityKind::Tolerance(t) => tolerance::draw(b, ctx, e, t, lw, tol),

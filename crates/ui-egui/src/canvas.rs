@@ -47,6 +47,8 @@ fn same_content(a: &ListKey, b: &ListKey) -> bool {
 #[derive(Default)]
 pub struct CanvasState {
     pub list: Option<DisplayList>,
+    /// Textures of the raster images' pictures ([`images`]).
+    pub images: images::ImageTextures,
     key: ListKey,
     /// The area `list` was built for (hatch patterns exist only inside it); a view leaving it
     /// rebuilds the list.
@@ -1631,11 +1633,17 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     // The active viewport's contents, drawn apart from the layout's list, under its own objects.
     // `masked`: its outline is in the stencil buffer this frame.
     let mut masked = false;
+    // Raster images go under everything else.
+    let rasters = app.session.doc().map(|d| d.rasters.clone()).unwrap_or_default();
     if let Some(f) = ensure_vp_content(app, &xf_paper, ui.ctx()) {
         let gpu = app.canvas.gpu.is_some();
         let clipped = painter.with_clip_rect(f.on_screen.intersect(rect));
+        images::draw(&mut app.canvas.images, &rasters, &clipped, &f.xf, &app.canvas.vp.list);
         draw_vp_content(&mut app.canvas.vp, gpu, &clipped, &f, &xf_paper, bg, app.session.settings.lwdisplay);
         masked = gpu && f.outline.is_some();
+    }
+    if let Some(list) = &app.canvas.list {
+        images::draw(&mut app.canvas.images, &rasters, &painter, &xf_paper, list);
     }
     if app.canvas.gpu.is_some() {
         draw_list_gpu(&mut app.canvas, &painter, &xf_paper, bg, app.session.settings.lwdisplay);
@@ -2627,6 +2635,9 @@ mod compare;
 
 /// Background rebuilds of the display list for a new view.
 mod rebuild;
+
+/// Raster images' pictures, drawn under the drawing.
+pub mod images;
 
 #[cfg(test)]
 mod hatch_pick_tests {

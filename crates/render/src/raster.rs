@@ -5,6 +5,7 @@ use cadcraft_geom::{Bounds2, Vec2};
 use tiny_skia::{FillRule, LineCap, LineJoin, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 use crate::{DisplayList, Kind};
+use cadcraft_doc::raster::RasterStore;
 
 /// A 2D view: world point at the image centre and pixels per drawing unit.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -72,11 +73,28 @@ impl Default for RasterOptions {
 
 /// Render to a pixmap. Returns `None` for zero or absurd sizes.
 pub fn render(list: &DisplayList, view: &View, o: &RasterOptions) -> Option<Pixmap> {
+    render_inner(list, view, o, None)
+}
+
+/// [`render`] with the pictures of the list's raster images, from the drawing's `rasters`.
+pub fn render_with_images(list: &DisplayList, view: &View, o: &RasterOptions, rasters: &RasterStore) -> Option<Pixmap> {
+    render_inner(list, view, o, Some(rasters))
+}
+
+/// [`render_png`] with the pictures of the list's raster images.
+pub fn render_png_with_images(list: &DisplayList, view: &View, o: &RasterOptions, rasters: &RasterStore) -> Option<Vec<u8>> {
+    render_with_images(list, view, o, rasters)?.encode_png().ok()
+}
+
+fn render_inner(list: &DisplayList, view: &View, o: &RasterOptions, rasters: Option<&RasterStore>) -> Option<Pixmap> {
     if view.width == 0 || view.height == 0 || view.width > 16384 || view.height > 16384 {
         return None;
     }
     let mut pm = Pixmap::new(view.width, view.height)?;
     pm.fill(tiny_skia::Color::from_rgba8(o.background.0, o.background.1, o.background.2, 255));
+    if let Some(rasters) = rasters {
+        draw_images(&mut pm, list, view, rasters, o.antialias);
+    }
     let vis = view.world_bounds();
     for p in &list.prims {
         let c = p.display_rgb(o.background);
@@ -156,6 +174,49 @@ pub fn render(list: &DisplayList, view: &View, o: &RasterOptions) -> Option<Pixm
 }
 
 /// Render and encode as PNG.
+/// The list's raster images, under its primitives: each picture (with its adjustments) drawn
+/// through its triangles.
+fn draw_images(pm: &mut Pixmap, list: &DisplayList, view: &View, rasters: &RasterStore, antialias: bool) {
+    for im in &list.images {
+        let Some(r) = rasters.get(&im.path) else { continue };
+        let mut px = r.adjusted(im.brightness, im.contrast, im.fade);
+        // tiny-skia takes premultiplied colour.
+        for p in px.chunks_mut(4) {
+            if let [rr, g, b, a] = p {
+                let k = u16::from(*a);
+                *rr = ((u16::from(*rr) * k + 127) / 255) as u8;
+                *g = ((u16::from(*g) * k + 127) / 255) as u8;
+                *b = ((u16::from(*b) * k + 127) / 255) as u8;
+            }
+        }
+        let Some(size) = tiny_skia::IntSize::from_wh(r.width, r.height) else { continue };
+        let Some(src) = Pixmap::from_vec(px, size) else { continue };
+        // Pixel (x, y), y down from the top-left corner, to the screen.
+        let (w, h) = (f64::from(r.width), f64::from(r.height));
+        let (ox, oy) = view.to_screen(im.origin + im.v);
+        let ux = im.u / w;
+        let vy = im.v / -h;
+        let s = view.scale;
+        let t = Transform::from_row((ux.x * s) as f32, (-ux.y * s) as f32, (vy.x * s) as f32, (-vy.y * s) as f32, ox, oy);
+        let shader = tiny_skia::Pattern::new(src.as_ref(), tiny_skia::SpreadMode::Pad, tiny_skia::FilterQuality::Bilinear, 1.0, t);
+        let mut pb = PathBuilder::new();
+        for tri in im.tris.as_chunks::<3>().0 {
+            for (i, q) in tri.iter().enumerate() {
+                let (x, y) = view.to_screen(*q);
+                if i == 0 {
+                    pb.move_to(x, y);
+                } else {
+                    pb.line_to(x, y);
+                }
+            }
+            pb.close();
+        }
+        let Some(path) = pb.finish() else { continue };
+        let paint = Paint { shader, anti_alias: antialias, ..Paint::default() };
+        pm.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+    }
+}
+
 pub fn render_png(list: &DisplayList, view: &View, o: &RasterOptions) -> Option<Vec<u8>> {
     render(list, view, o)?.encode_png().ok()
 }

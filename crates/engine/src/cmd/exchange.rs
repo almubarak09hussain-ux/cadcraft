@@ -358,7 +358,8 @@ fn run_preview(s: &mut Session, p: &Value) -> Result<Value> {
         px_per_mm: if lineweights && px_per_mm.is_finite() { px_per_mm } else { 0.0 },
         antialias: true,
     };
-    let png = cadcraft_render::raster::render_png(&list, &view, &ro).ok_or_else(|| bad("preview", "rendering the preview failed"))?;
+    let png = cadcraft_render::raster::render_png_with_images(&list, &view, &ro, &d.rasters)
+        .ok_or_else(|| bad("preview", "rendering the preview failed"))?;
     let layout = space.tab_name();
     Ok(json!({ "data": base64_encode(&png), "width": w, "height": h, "layout": layout, "paper": page.paper, "landscape": page.landscape }))
 }

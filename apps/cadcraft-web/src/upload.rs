@@ -17,10 +17,17 @@ const INPUT_ID: &str = "cadcraft_open_input";
 /// file type for `.dwg` and would grey DWG files out in the Files picker.
 const ACCEPT: &str = ".dxf,.dwg";
 
+/// Most pictures read from one Reload Image Files pick.
+const MAX_PICTURES: u32 = 100;
+/// Largest picture file read, in bytes.
+const MAX_PICTURE_BYTES: f64 = 256.0 * 1024.0 * 1024.0;
+
 /// What arrived for the app: a file to open (name, contents, notes on what reading it left out),
 /// a progress message, or why a file couldn't be read.
 enum Upload {
     File(String, Vec<u8>, Vec<String>),
+    /// A picture for a raster image (name, contents, whether it reloads images that reference it).
+    Picture(String, Vec<u8>, bool),
     Progress(String),
     Failed(String),
 }
@@ -40,12 +47,22 @@ impl Inbox {
     /// Show the browser's file picker and return at once. A chosen file arrives through
     /// [`Self::drain`]; cancelling the picker does nothing.
     pub fn pick(&self) {
-        if let Err(e) = self.show_picker() {
+        if let Err(e) = self.show_picker(None) {
             self.push(Upload::Failed(format!("Open: the browser's file picker is not available ({e})")));
         }
     }
 
-    fn show_picker(&self) -> Result<(), String> {
+    /// Show the picker for PNG and JPEG pictures (on an iPad it offers Photos and Files): for
+    /// Insert ▸ Raster Image Reference, or several for Reload Image Files (`reload`). The pictures
+    /// arrive through [`Self::drain`].
+    pub fn pick_images(&self, reload: bool) {
+        if let Err(e) = self.show_picker(Some(reload)) {
+            self.push(Upload::Failed(format!("Image: the browser's file picker is not available ({e})")));
+        }
+    }
+
+    /// `images`: pick pictures (`Some(reload)`) instead of a drawing.
+    fn show_picker(&self, images: Option<bool>) -> Result<(), String> {
         let document = web_sys::window().and_then(|w| w.document()).ok_or("no browser document")?;
         let body = document.body().ok_or("the page has no body")?;
         if let Some(old) = document.get_element_by_id(INPUT_ID) {
@@ -57,16 +74,35 @@ impl Inbox {
             .dyn_into::<web_sys::HtmlInputElement>()
             .map_err(|_| "could not create a file input".to_string())?;
         input.set_type("file");
-        if !touch_device() {
-            input.set_accept(ACCEPT);
+        match images {
+            // MIME types, which iPadOS understands (and offers the photo library for).
+            Some(reload) => {
+                input.set_accept("image/png,image/jpeg");
+                input.set_multiple(reload);
+            }
+            None if !touch_device() => input.set_accept(ACCEPT),
+            None => {}
         }
         input.set_id(INPUT_ID);
         input.set_attribute("style", "display:none").map_err(js_error)?;
         let (inbox, chosen) = (self.clone(), input.clone());
         // Called once, when a file was chosen (browsers don't fire `change` on cancel).
         let on_change = wasm_bindgen::closure::Closure::once_into_js(move || {
-            if let Some(file) = chosen.files().and_then(|f| f.get(0)) {
-                inbox.read(file);
+            let files = chosen.files();
+            match images {
+                Some(reload) => {
+                    let n = files.as_ref().map_or(0, web_sys::FileList::length).min(MAX_PICTURES);
+                    for i in 0..n {
+                        if let Some(file) = files.as_ref().and_then(|f| f.get(i)) {
+                            inbox.read_picture(file, reload);
+                        }
+                    }
+                }
+                None => {
+                    if let Some(file) = files.and_then(|f| f.get(0)) {
+                        inbox.read(file);
+                    }
+                }
             }
             chosen.remove();
         });
@@ -104,9 +140,29 @@ impl Inbox {
         });
     }
 
+    /// Read picture `file` in the background; it arrives through [`Self::drain`].
+    fn read_picture(&self, file: web_sys::File, reload: bool) {
+        let name = file.name();
+        let size = file.size();
+        if !(size.is_finite() && (0.0..=MAX_PICTURE_BYTES).contains(&size)) {
+            return self.push(Upload::Failed(format!("Image: {name} is too large")));
+        }
+        let inbox = self.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
+                Ok(buf) => inbox.push(Upload::Picture(name, js_sys::Uint8Array::new(&buf).to_vec(), reload)),
+                Err(e) => inbox.push(Upload::Failed(format!("Image: could not read {name}: {}", js_error(e)))),
+            }
+        });
+    }
+
     /// A file's contents are here: open it on the next frame, a DWG once the DWG worker has
     /// converted it.
     fn arrived(&self, name: String, bytes: Vec<u8>) {
+        // A PNG or JPEG picture (dropped on the page) is attached as a raster image.
+        if bytes.starts_with(&[0x89, b'P', b'N', b'G']) || bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+            return self.push(Upload::Picture(name, bytes, false));
+        }
         if !cadcraft_dwg::is_dwg(&bytes) {
             return self.push(Upload::File(name, bytes, Vec::new()));
         }
@@ -156,6 +212,7 @@ impl Inbox {
                     }
                 }
                 // On the command line only, so the status bar doesn't keep it once the file opens.
+                Upload::Picture(name, bytes, reload) => app.image_picked(&name, Some(&bytes), reload),
                 Upload::Progress(msg) => app.session.echo(msg),
                 Upload::Failed(msg) => app.open_failed(msg),
             }

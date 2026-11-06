@@ -87,6 +87,8 @@ fn services(browser: &files::Browser, documents: Option<std::path::PathBuf>) -> 
             None
         })),
         pick_save: Some(Box::new(move |name: &str| documents.as_deref().map(|d| files::save_path(d, name).to_string_lossy().into_owned()))),
+        // No picture picker yet.
+        pick_images: None,
     }
 }
 

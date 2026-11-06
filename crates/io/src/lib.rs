@@ -176,7 +176,7 @@ pub fn png(d: &Drawing, space: &Space, width: u32, height: u32) -> Result<Vec<u8
 pub fn png_framed(d: &Drawing, space: &Space, width: u32, height: u32, window: Option<Bounds2>) -> Result<Vec<u8>> {
     let list = cadcraft_render::build(d, space, &cadcraft_render::Options { transparency: true, ..cadcraft_render::Options::default() });
     let view = png_view(&list.bounds, width, height, window);
-    cadcraft_render::raster::render_png(&list, &view, &cadcraft_render::raster::RasterOptions::default())
+    cadcraft_render::raster::render_png_with_images(&list, &view, &cadcraft_render::raster::RasterOptions::default(), &d.rasters)
         .ok_or_else(|| IoError::Format("render failed".into()))
 }
 

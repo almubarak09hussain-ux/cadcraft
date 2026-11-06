@@ -21,6 +21,8 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
         return None;
     }
     match id {
+        "imageattach" | "iat" | "attach" | "image" => Some(app.pick_images(false)),
+        "ui.imagereload" => Some(app.pick_images(true)),
         "publish" | "mledit" => {
             if let Err(e) = app.session.doc() {
                 return Some(Err(e.to_string()));

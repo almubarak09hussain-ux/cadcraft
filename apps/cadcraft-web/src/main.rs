@@ -154,6 +154,12 @@ mod web {
                             picker.pick();
                             None
                         }));
+                        // Pictures for raster images arrive the same way (`upload.rs`).
+                        let pictures = inbox.clone();
+                        app.services.pick_images = Some(Box::new(move |reload| {
+                            pictures.pick_images(reload);
+                            Vec::new()
+                        }));
                         let host = app_bridge.map(|bridge| {
                             bridge.listen(inbox.clone());
                             bridge.post_ready();

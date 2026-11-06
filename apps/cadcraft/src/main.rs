@@ -136,6 +136,11 @@ fn services() -> Services {
                 .pick_file()
                 .map(|p| p.to_string_lossy().to_string())
         })),
+        pick_images: Some(Box::new(|several: bool| {
+            let dialog = rfd::FileDialog::new().add_filter(i18n::t("Pictures (PNG, JPEG)"), &["png", "jpg", "jpeg"]);
+            let picked = if several { dialog.pick_files().unwrap_or_default() } else { dialog.pick_file().into_iter().collect() };
+            picked.into_iter().map(|p| p.to_string_lossy().to_string()).collect()
+        })),
         pick_save: Some(Box::new(|name: &str| {
             filters_for_save(name)
                 .iter()

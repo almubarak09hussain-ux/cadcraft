@@ -1405,3 +1405,8 @@
 	Alternate Units	Альтернативні одиниці
 	Tolerances	Допуски
 	Lines	Лінії
+	Load Image File	Завантажити файл зображення
+	Raster Image Reference...	Посилання на растрове зображення...
+	Reload Image Files...	Перезавантажити файли зображень...
+	{file}: {count} image(s) show it	{file}: зображень, що його показують: {count}
+	Pictures (PNG, JPEG)	Зображення (PNG, JPEG)

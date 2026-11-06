@@ -43,6 +43,7 @@ pub const UI_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
     ("ui.theme.light", "Light", &["View", "Interface Theme", "Light"], None),
     ("ui.theme.dark", "Dark", &["View", "Interface Theme", "Dark"], None),
     ("ui.theme", "Interface Theme", &[], None),
+    ("ui.imagereload", "Reload Image Files...", &["Insert", "Reload Image Files..."], None),
     ("ui.saveformat.dxf", "DXF", &["File", "Default Save Format", "DXF"], None),
     ("ui.saveformat.dwg", "DWG", &["File", "Default Save Format", "DWG"], None),
     ("ui.saveformat", "Default Save Format", &[], None),
@@ -698,6 +699,7 @@ mod tests {
                 log.borrow_mut().push(name.to_string());
                 answer.clone()
             })),
+            pick_images: None,
         };
         (CadApp::new(Session::new(), services), asked)
     }

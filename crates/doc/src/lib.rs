@@ -38,6 +38,8 @@ pub use tables::*;
 /// File data CADCraft doesn't model, kept for saving (#528).
 pub mod dynblock;
 pub mod foreign;
+/// The pixels of attached raster images (never written to a file).
+pub mod raster;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DocError {
@@ -127,6 +129,9 @@ pub struct Drawing {
     /// Records of the file this drawing was read from that the reader could not place (a damaged
     /// file), counted by the section they came from. Never written to a file.
     pub skipped_records: BTreeMap<String, usize>,
+    /// The pictures of its raster images loaded in this session ([`raster`]). Never written to a
+    /// file: images reference their files, as AutoCAD's do.
+    pub rasters: raster::RasterStore,
 }
 
 impl Default for Drawing {
@@ -183,6 +188,7 @@ impl Drawing {
             read_notes: Vec::new(),
             refedit: None,
             skipped_records: BTreeMap::new(),
+            rasters: raster::RasterStore::default(),
         }
     }
 

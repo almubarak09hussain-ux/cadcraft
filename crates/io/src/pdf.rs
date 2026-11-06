@@ -601,6 +601,7 @@ fn content_stream(
     clip_pt: &Bounds2,
     layers: &[u32],
     texts: &std::collections::HashMap<u32, (usize, &cadcraft_render::PlotText)>,
+    images: &str,
 ) -> (String, Vec<u8>) {
     let marked: std::collections::HashSet<u32> = layers.iter().copied().collect();
     let white = Rgb(255, 255, 255);
@@ -613,6 +614,8 @@ fn content_stream(
     c.push(' ');
     num(&mut c, clip_pt.height());
     c.push_str(" re W n\n");
+    // Raster images first, under everything else (see `image_marks`).
+    c.push_str(images);
     let mut stroke: Option<Rgb> = None;
     let mut fill: Option<Rgb> = None;
     let mut width: Option<f64> = None;
@@ -855,6 +858,109 @@ fn stream(data: &[u8], compress: bool, extra: &str) -> Vec<u8> {
     out
 }
 
+/// The content marks drawing a page's raster images (each clipped to its triangles, its picture
+/// mapped onto it), and the image objects they use. Pictures are written once per file and
+/// adjustment; a JPEG goes in as it is when nothing changes its pixels.
+fn image_marks(
+    d: &Drawing,
+    list: &cadcraft_render::DisplayList,
+    map: &Map,
+    objs: &mut Objects,
+    pictures: &mut std::collections::HashMap<(String, u8, u8, u8), usize>,
+) -> (String, Vec<usize>) {
+    let mut c = String::new();
+    let mut used = Vec::new();
+    for im in &list.images {
+        let Some(r) = d.rasters.get(&im.path) else { continue };
+        let key = (cadcraft_doc::raster::raster_key(&im.path), im.brightness, im.contrast, im.fade);
+        let id = match pictures.get(&key) {
+            Some(id) => *id,
+            None => {
+                let id = picture_object(objs, &r, im.brightness, im.contrast, im.fade);
+                pictures.insert(key, id);
+                id
+            }
+        };
+        if !used.contains(&id) {
+            used.push(id);
+        }
+        c.push_str("q\n");
+        for tri in im.tris.as_chunks::<3>().0 {
+            for (i, q) in tri.iter().enumerate() {
+                pt(&mut c, map.pt(*q));
+                c.push_str(if i == 0 { " m " } else { " l " });
+            }
+            c.push_str("h\n");
+        }
+        c.push_str("W n\n");
+        // The image's unit square onto its parallelogram: lower-left corner, width, height.
+        let o = map.pt(im.origin);
+        let u = map.pt(im.origin + im.u) - o;
+        let v = map.pt(im.origin + im.v) - o;
+        for x in [u.x, u.y, v.x, v.y, o.x, o.y] {
+            num(&mut c, x);
+            c.push(' ');
+        }
+        let _ = writeln!(c, "cm /Im{id} Do\nQ");
+    }
+    (c, used)
+}
+
+/// A picture as a PDF image object (with a soft mask for its transparent pixels); returns its
+/// object number.
+fn picture_object(objs: &mut Objects, r: &cadcraft_doc::raster::Raster, brightness: u8, contrast: u8, fade: u8) -> usize {
+    let (w, h) = (r.width, r.height);
+    let untouched = brightness == 50 && contrast == 50 && fade == 0;
+    let opaque = r.rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255);
+    if untouched
+        && opaque
+        && let Some(jpeg) = &r.jpeg
+        && let Some(space) = jpeg_color_space(jpeg)
+    {
+        let mut body = format!("<< /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /{space} /BitsPerComponent 8 /Filter /DCTDecode /Length {} >>\nstream\n", jpeg.len()).into_bytes();
+        body.extend_from_slice(jpeg);
+        body.extend_from_slice(b"\nendstream");
+        return objs.add(body);
+    }
+    let px = r.adjusted(brightness, contrast, fade);
+    let rgb: Vec<u8> = px.as_chunks::<4>().0.iter().flat_map(|&[r, g, b, _]| [r, g, b]).collect();
+    let mask = if opaque {
+        String::new()
+    } else {
+        let alpha: Vec<u8> = px.as_chunks::<4>().0.iter().map(|p| p[3]).collect();
+        let m = objs.add(stream(
+            &alpha,
+            true,
+            &format!(" /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceGray /BitsPerComponent 8"),
+        ));
+        format!(" /SMask {m} 0 R")
+    };
+    objs.add(stream(&rgb, true, &format!(" /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8{mask}")))
+}
+
+/// A JPEG's colour space when a PDF can show it as it is: its frame header's component count
+/// (1 grey, 3 RGB); `None` for CMYK or a file not understood.
+fn jpeg_color_space(jpeg: &[u8]) -> Option<&'static str> {
+    let mut i = 2usize;
+    while i + 9 < jpeg.len() {
+        if jpeg.get(i) != Some(&0xFF) {
+            return None;
+        }
+        let marker = *jpeg.get(i + 1)?;
+        let len = usize::from(u16::from_be_bytes([*jpeg.get(i + 2)?, *jpeg.get(i + 3)?]));
+        // Start of frame (baseline, extended, progressive): components at offset 9.
+        if matches!(marker, 0xC0..=0xC2) {
+            return match jpeg.get(i + 9)? {
+                1 => Some("DeviceGray"),
+                3 => Some("DeviceRGB"),
+                _ => None,
+            };
+        }
+        i = i.checked_add(2 + len)?;
+    }
+    None
+}
+
 /// PDF objects being written: bodies by object number - 1.
 #[derive(Default)]
 struct Objects {
@@ -897,10 +1003,13 @@ fn assemble(d: &Drawing, pages: &[SheetPage], fonts: &fonts::Fonts, o: &PdfOptio
     let mut kids = Vec::new();
     // Page dictionaries are completed once the fonts are written: (page, its fonts, the rest).
     let mut page_dicts: Vec<(usize, Vec<usize>, String, String, String)> = Vec::new();
+    // Raster images' pictures, written once each: (file, brightness, contrast, fade) → object.
+    let mut pictures: std::collections::HashMap<(String, u8, u8, u8), usize> = std::collections::HashMap::new();
     for p in pages {
         let page = objs.reserve();
         let texts = fonts.texts(&p.list);
-        let (marks, alphas) = content_stream(&p.list, &p.map, &p.clip_pt, &p.layers, &texts);
+        let (image_ops, image_ids) = image_marks(d, &p.list, &p.map, &mut objs, &mut pictures);
+        let (marks, alphas) = content_stream(&p.list, &p.map, &p.clip_pt, &p.layers, &texts, &image_ops);
         let content = objs.add(stream(marks.as_bytes(), o.compress, ""));
         let mut used: Vec<usize> = texts.values().map(|(f, _)| *f).collect();
         used.sort_unstable();
@@ -931,7 +1040,12 @@ fn assemble(d: &Drawing, pages: &[SheetPage], fonts: &fonts::Fonts, o: &PdfOptio
         let mut mb = String::new();
         pt(&mut mb, p.media);
         let annots = if annots.is_empty() { String::new() } else { format!(" /Annots [{}]", refs(annots)) };
-        page_dicts.push((page, used, props, ext_gstates(&alphas), format!("/MediaBox [0 0 {mb}] /Contents {content} 0 R{annots}")));
+        let mut gstates = ext_gstates(&alphas);
+        if !image_ids.is_empty() {
+            let x: Vec<String> = image_ids.iter().map(|id| format!("/Im{id} {id} 0 R")).collect();
+            let _ = write!(gstates, " /XObject << {} >>", x.join(" "));
+        }
+        page_dicts.push((page, used, props, gstates, format!("/MediaBox [0 0 {mb}] /Contents {content} 0 R{annots}")));
         kids.push(page);
     }
     let font_ids = if fonts.is_empty() { Vec::new() } else { fonts.write(&mut objs, o.compress) };

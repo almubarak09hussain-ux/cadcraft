@@ -192,6 +192,9 @@ impl Default for UiState {
 pub struct Services {
     pub pick_open: Option<Box<dyn Fn() -> Option<String>>>,
     pub pick_save: Option<Box<dyn Fn(&str) -> Option<String>>>,
+    /// Pick PNG or JPEG picture files (several when the argument is true): their paths, or none
+    /// when the host hands the files over later ([`CadApp::image_picked`], the web).
+    pub pick_images: Option<Box<dyn Fn(bool) -> Vec<String>>>,
 }
 
 pub struct CadApp {
@@ -488,6 +491,51 @@ impl CadApp {
         let data = cadcraft_engine::cmd::file::base64_encode(bytes);
         let r = self.run("open", json!({ "data": data, "name": name }));
         self.opened(r);
+    }
+
+    /// A picture file the user picked for Insert ▸ Raster Image Reference (`reload` false: load it,
+    /// then IMAGEATTACH asks where to place it) or Insert ▸ Reload Image Files (`reload`: load it
+    /// for the images that reference a file of that name). `bytes` is the file's contents where
+    /// there are no paths (the web); otherwise `name` is its path.
+    pub fn image_picked(&mut self, name: &str, bytes: Option<&[u8]>, reload: bool) {
+        let p = match bytes {
+            Some(b) => json!({ "data": cadcraft_engine::cmd::file::base64_encode(b), "name": name }),
+            None => json!({ "path": name }),
+        };
+        match self.run("imageload", p) {
+            Err(e) => self.set_status(e),
+            Ok(r) if reload => {
+                let file = r["name"].as_str().unwrap_or(name).to_string();
+                let msg = crate::tf!("{file}: {count} image(s) show it", file = file, count = r["shown"].as_u64().unwrap_or(0));
+                self.session.echo(msg.clone());
+                self.set_status(msg);
+            }
+            Ok(_) => {
+                // IMAGEATTACH with the picture just loaded: insertion point, scale, rotation.
+                if self.session.running.is_some() {
+                    self.session.cancel();
+                }
+                let r = self.session.start("imageattach").and_then(|()| self.session.input(cadcraft_engine::Input::Enter));
+                if let Err(e) = r {
+                    self.session.echo(e.to_string());
+                }
+            }
+        }
+    }
+
+    /// Ask the host for picture files: Insert ▸ Raster Image Reference (`reload` false) or Reload
+    /// Image Files (`reload`).
+    pub fn pick_images(&mut self, reload: bool) -> Result<Value, String> {
+        let Some(pick) = self.services.pick_images.as_ref() else {
+            return Err("Picking picture files is not available here".into());
+        };
+        for path in pick(reload) {
+            self.image_picked(&path, None, reload);
+            if !reload {
+                break;
+            }
+        }
+        Ok(Value::Null)
     }
 
     /// Report a file that could not be opened before OPEN ran (unreadable, too large) as a failed

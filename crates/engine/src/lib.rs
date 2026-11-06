@@ -633,6 +633,8 @@ pub struct Session {
     /// tangent first point (e.g. [`cmd::draw::LineM`]) when the next point is typed
     /// rather than clicked. Cleared at [`Session::start`].
     pub last_polar: Option<(f64, f64)>,
+    /// The picture IMAGELOAD read last (its file name), IMAGEATTACH's default.
+    pub last_image: Option<String>,
     /// Point modifiers pending at the current point prompt (`FROM`, `M2P`, `.x`, `<a`…).
     pub point_mods: Vec<pointmod::Frame>,
     /// Cursor position in world coordinates (from the UI; used for direct distance entry).
@@ -699,6 +701,7 @@ impl Session {
             last_point: Vec2::ZERO,
             last_segment: None,
             last_polar: None,
+            last_image: None,
             point_mods: Vec::new(),
             cursor: Vec2::ZERO,
             cursor_deferred: None,
@@ -1344,6 +1347,14 @@ impl Session {
     /// ([`Interactive::editing_mtext`]).
     pub fn editing_mtext(&self) -> Option<cadcraft_doc::MText> {
         self.running.as_ref().and_then(|r| r.machine.editing_mtext())
+    }
+
+    /// Draw the current drawing again although it didn't change (a picture its images show was
+    /// loaded): bumps the revision the display lists are built for.
+    pub fn touch_view(&mut self) {
+        if let Ok(st) = self.state_mut() {
+            st.revision += 1;
+        }
     }
 
     /// The single-line text the running command edits in place ([`Interactive::editing_text`]).

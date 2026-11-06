@@ -103,7 +103,7 @@ fn png(d: &Drawing, space: &Space, opts: &Value) -> Result<Vec<u8>> {
     };
     let px_per_mm = if lineweights { (k / sheet.unit_mm) as f32 } else { 0.0 };
     let ro = raster::RasterOptions { background: Rgb(255, 255, 255), hairline: 1.0, px_per_mm, antialias: true };
-    raster::render_png(&list, &view, &ro).ok_or_else(|| IoError::Format("render failed".into()))
+    raster::render_png_with_images(&list, &view, &ro, &d.rasters).ok_or_else(|| IoError::Format("render failed".into()))
 }
 
 fn svg(d: &Drawing, space: &Space, opts: &Value) -> Result<Vec<u8>> {

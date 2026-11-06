@@ -94,16 +94,24 @@ pub fn write_with(d: &Drawing, name: &str, opts: &SaveOptions) -> Result<Vec<u8>
                 cadcraft_dxf::write_ascii_as(&tags, version.utf8()).into_bytes()
             })
         }
-        // The DWG bridge reads our R2000 DXF and writes the DWG at the version asked for. Without
-        // one, at least 2004: R2000 DWG has no true colours, transparency, table styles or
-        // gradients, so a drawing from an R2000 DXF doesn't lose them by default.
         "dwg" if !opts.binary => {
-            let version = opts.version.unwrap_or_else(|| version.max(Version::R2004));
-            cadcraft_dwg::dxf_to_dwg_as(dxf_write::dwg_bridge(d, version).as_bytes(), version.code()).map_err(IoError::Format)
+            let (dxf, code) = dwg_bridge(d, opts);
+            cadcraft_dwg::dxf_to_dwg_as(&dxf, code).map_err(IoError::Format)
         }
         e if opts.binary => Err(IoError::Format(format!("binary output is for DXF files, not `{e}`"))),
         _ => write_framed(d, name, None),
     }
+}
+
+/// The two halves of a DWG save: the DXF the DWG converter reads, and the DWG version code to
+/// write ("AC1032"). [`write_with`] converts it at once; the web app hands it to its DWG worker
+/// (`apps/cadcraft-dwg-worker`) through [`cadcraft_dwg::dxf_to_dwg_as`] there.
+pub fn dwg_bridge(d: &Drawing, opts: &SaveOptions) -> (Vec<u8>, &'static str) {
+    // The DWG bridge reads our R2000 DXF and writes the DWG at the version asked for. Without
+    // one, at least 2004: R2000 DWG has no true colours, transparency, table styles or
+    // gradients, so a drawing from an R2000 DXF doesn't lose them by default.
+    let version = opts.version.unwrap_or_else(|| save_version(d).max(Version::R2004));
+    (dxf_write::dwg_bridge(d, version).into_bytes(), version.code())
 }
 
 /// Like [`write`], but image formats (PNG, SVG, PDF) show `window` (a model-space rectangle in

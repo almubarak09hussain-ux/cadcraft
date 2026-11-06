@@ -1,2 +1,6 @@
 [alias]
 xtask = "run --package xtask --"
+
+# WebAssembly SIMD (128-bit vectors): every browser CADCraft supports has it (Safari 16.4+).
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

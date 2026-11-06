@@ -1,0 +1,90 @@
+# CADCraft in the browser on GitHub Pages: builds apps/cadcraft-web with trunk (the app and its
+# DWG worker, apps/cadcraft-dwg-worker) and publishes dist/web. Pages serves it over HTTPS, which
+# browsers require for WebGPU (on plain http they fall back to WebGL2), so on an iPad it draws
+# through WebGPU and Metal. Open it in Safari and use Share > Add to Home Screen.
+#
+# One-time setup: Settings > Pages > Source: GitHub Actions; the github-pages environment must
+# allow the branch this runs on.
+name: Web (GitHub Pages)
+
+on:
+  push:
+    branches: [web/ipad-speed-dwg]
+    paths:
+      - .github/workflows/web-pages.yml
+      - .cargo/**
+      - Cargo.toml
+      - Cargo.lock
+      - apps/cadcraft-web/**
+      - apps/cadcraft-dwg-worker/**
+      - crates/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TRUNK_VERSION: v0.22.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+          rustc --version
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/.cache/trunk
+            target
+          key: web-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: web-${{ runner.os }}-
+
+      - name: Trunk
+        run: |
+          base="https://github.com/trunk-rs/trunk/releases/download/$TRUNK_VERSION"
+          file=trunk-x86_64-unknown-linux-gnu.tar.gz
+          curl -fsSL -o "$RUNNER_TEMP/$file" "$base/$file"
+          curl -fsSL -o "$RUNNER_TEMP/$file.sha256" "$base/$file.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c <(awk -v f="$file" '{print $1"  "f}' "$file.sha256"))
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$HOME/.local/bin" trunk
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build
+        working-directory: apps/cadcraft-web
+        run: |
+          trunk --version
+          trunk build --release
+          ls -la ../../dist/web
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

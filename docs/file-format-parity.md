@@ -34,6 +34,8 @@ DWG format), 2013, 2010, 2007, 2004, 2000 and R14. CADCraft reads DWG by convert
 with the `acadrust` 0.6.3 crate and reading that DXF; it saves by writing its own R2000 DXF and
 converting it to a DWG of the chosen version (#421): SAVEAS `version`, else the drawing's own
 version (the file's `$ACADVER`, 2018 for a new drawing), at least 2004 unless 2000 is asked for.
+In the web build both conversions run in a Web Worker (`apps/cadcraft-dwg-worker`), so a file
+the converter fails on stops the worker and reports an error instead of ending the page.
 The bridge repairs two acadrust 0.6.3 gaps in 2010+ DWG: merged table cells and table-style
 title/header suppression.
 
@@ -135,6 +137,7 @@ our output in AutoCAD black-box.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-06 | minor | Web build opens and saves DWG (was DXF only): the DWG converter runs in a Web Worker, one per file; the file picker no longer filters by type on touch devices, where iPadOS greyed DWG files out |
 | 2026-10-12 | minor | PDF output: object transparency plotted as PDF alpha (`/ExtGState` `/ca` `/CA`) when the page setup's or the plot's "Plot transparency" is on; PNG plots blend it, SVG uses `opacity`; plots without it are unchanged byte for byte |
 | 2026-10-12 | minor | DXF/DWG save: the Model layout's plot settings are written as CADCraft plots model space, drawing extents scaled to fit (PLOTSETTINGS 74 = 1, 75 = 0), instead of plot type 5 "Layout information", which other programs' Plot dialogs can't use for model space |
 | 2026-10-12 | minor | VIEWPORT frozen layers also written and read as AutoCAD's group 341 layer handles, so third-party viewers honour per-viewport freezing in DXF (DWG converter gap noted) |

@@ -4,7 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>CADCraft</title>
-  <link data-trunk rel="rust" data-bin="cadcraft-web" data-wasm-opt="z" data-weak-refs />
+  <!-- Added to the Home Screen (iPad, iPhone, Android), CADCraft opens full screen, without the browser's bars. -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="CADCraft">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <!-- Built for speed (profile `web`, wasm-opt -O3), not size: the browser caches the download. -->
+  <link data-trunk rel="rust" data-bin="cadcraft-web" data-cargo-profile-release="web" data-wasm-opt="3" data-weak-refs />
+  <!-- DWG open and save run in this Web Worker (apps/cadcraft-dwg-worker). -->
+  <link data-trunk rel="rust" href="../cadcraft-dwg-worker/Cargo.toml" data-bin="cadcraft-dwg-worker" data-type="worker" data-loader-shim data-cargo-profile-release="web" data-wasm-opt="3" data-weak-refs />
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #22282f; }
     #cadcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }

@@ -4,13 +4,16 @@
 //! (wgpu: WebGPU where available, WebGL2 otherwise). Build with `trunk build --release` from this
 //! directory (output in `dist/web`). URL flags: `?webgl` forces WebGL2, `?cpu` draws the drawing
 //! with egui shapes instead of the GPU canvas, `?sample` opens the sample drawing. Saving downloads
-//! the drawing through the browser (`download.rs`). With `?host=parent` (inside an `<iframe>`), a
+//! the drawing through the browser (`download.rs`). DWG files open and save through a Web Worker
+//! (`dwg.rs`, `apps/cadcraft-dwg-worker`). With `?host=parent` (inside an `<iframe>`), a
 //! same-origin parent page sends the drawing to open and stores what CADCraft saves instead
 //! (`host.rs`).
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 #[cfg(target_arch = "wasm32")]
 pub mod download;
+#[cfg(target_arch = "wasm32")]
+mod dwg;
 #[cfg(target_arch = "wasm32")]
 mod host;
 
@@ -32,6 +35,9 @@ mod web {
         fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
             self.1.take_dropped(ctx);
             self.1.drain(&mut self.0);
+            for notice in crate::dwg::take_notices() {
+                self.0.open_failed(notice);
+            }
             self.0.system_animations = self.3.as_ref().map(|reduced| !reduced.matches());
             self.0.logic(ctx);
             if let Some((bridge, reported)) = &self.2 {
@@ -76,11 +82,12 @@ mod web {
         eframe::WebLogger::init(log::LevelFilter::Info).ok();
         cadcraft_engine::cmd::file::set_io(cadcraft_engine::cmd::file::IoHooks {
             read: |b, name| cadcraft_io::read(b, name).map_err(|e| e.to_string()),
-            write: |d, name| cadcraft_io::write(d, name).map_err(|e| e.to_string()),
+            // `.dwg` saves convert in the DWG worker on delivery (`dwg.rs`).
+            write: crate::dwg::write,
             plot: Some(|d, space, opts| cadcraft_io::plotter::plot(d, space, opts).map_err(|e| e.to_string())),
         });
         cadcraft_engine::cmd::file::set_write_as(|d, name, o| {
-            cadcraft_io::write_with(d, name, &cadcraft_io::SaveOptions { version: o.version, binary: o.binary }).map_err(|e| e.to_string())
+            crate::dwg::write_with(d, name, &cadcraft_io::SaveOptions { version: o.version, binary: o.binary })
         });
         // AutoLISP's entget, entmake and entmod see entities as DXF groups.
         cadcraft_engine::cmd::file::set_entity_codec(cadcraft_engine::cmd::file::EntityCodec {
@@ -96,7 +103,7 @@ mod web {
                 bridge.install();
                 cadcraft_engine::cmd::file::set_deliver(crate::host::deliver);
             }
-            None => cadcraft_engine::cmd::file::set_deliver(crate::download::download),
+            None => cadcraft_engine::cmd::file::set_deliver(crate::dwg::deliver),
         }
         let app_bridge = bridge.clone();
         wasm_bindgen_futures::spawn_local(async move {
@@ -141,6 +148,7 @@ mod web {
                         // No paths on the web: OPEN asks the browser's file picker, which reads the
                         // chosen file in the background (`upload.rs`), so the picker returns none.
                         let inbox = crate::upload::Inbox::new(&cc.egui_ctx);
+                        crate::dwg::set_repaint(&cc.egui_ctx);
                         let picker = inbox.clone();
                         app.services.pick_open = Some(Box::new(move || {
                             picker.pick();

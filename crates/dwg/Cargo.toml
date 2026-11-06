@@ -8,6 +8,13 @@ license.workspace = true
 [lints]
 workspace = true
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# MPL-2.0: used as an unmodified dependency only (see plan/adr/0001 and NOTICE).
+[features]
+# Build the DWG converter on wasm32 too. Only the web app's DWG worker
+# (apps/cadcraft-dwg-worker) turns it on: there a reader failure stops the worker, not the app.
+# Without it the web build has stubs that report DWG as not available.
+web = []
+
+[dependencies]
+# MPL-2.0: used as an unmodified dependency only (see plan/adr/0001 and NOTICE). Compiled on
+# every target; on wasm32 it is linked only with the `web` feature.
 acadrust = "0.6.4"

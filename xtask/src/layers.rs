@@ -50,6 +50,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("cadcraft", Class::Exempt),
     ("cli", Class::Exempt),
     ("web", Class::Exempt),
+    ("dwg-worker", Class::Exempt),
     ("ios", Class::Exempt),
     ("xtask", Class::Exempt),
 ];

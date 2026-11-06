@@ -614,6 +614,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cadcraft-dwg-worker"
+version = "0.7.0"
+dependencies = [
+ "cadcraft-dwg",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "cadcraft-dxf"
 version = "0.7.0"
 dependencies = [
@@ -742,6 +751,7 @@ dependencies = [
 name = "cadcraft-web"
 version = "0.7.0"
 dependencies = [
+ "cadcraft-dwg",
  "cadcraft-engine",
  "cadcraft-io",
  "cadcraft-ui-egui",

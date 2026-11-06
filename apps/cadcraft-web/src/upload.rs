@@ -1,7 +1,8 @@
 //! Browser uploads: File > Open… on the web, through web-sys only. There is no file system to pick
 //! a path from, so the picker is a hidden `<input type="file">`; the chosen file (or one dropped on
 //! the page) is read in the background and handed to the app on its next frame, which opens it
-//! with OPEN `{data, name}` ([`CadApp::open_bytes`]).
+//! with OPEN `{data, name}` ([`CadApp::open_bytes`]). A DWG file is converted to DXF in the DWG
+//! worker first (`dwg.rs`).
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -12,11 +13,17 @@ use web_sys::js_sys;
 
 /// The hidden file input (one at a time; a cancelled pick leaves it until the next one).
 const INPUT_ID: &str = "cadcraft_open_input";
-/// What the picker offers: the formats OPEN reads.
+/// What the picker offers: the formats OPEN reads. Not used on touch devices: iPadOS knows no
+/// file type for `.dwg` and would grey DWG files out in the Files picker.
 const ACCEPT: &str = ".dxf,.dwg";
 
-/// A file read in the browser (name, contents), or why it couldn't be read.
-type Upload = Result<(String, Vec<u8>), String>;
+/// What arrived for the app: a file to open (name, contents, notes on what reading it left out),
+/// a progress message, or why a file couldn't be read.
+enum Upload {
+    File(String, Vec<u8>, Vec<String>),
+    Progress(String),
+    Failed(String),
+}
 
 /// Files read in the background, waiting for the app's next frame.
 #[derive(Clone)]
@@ -34,7 +41,7 @@ impl Inbox {
     /// [`Self::drain`]; cancelling the picker does nothing.
     pub fn pick(&self) {
         if let Err(e) = self.show_picker() {
-            self.push(Err(format!("Open: the browser's file picker is not available ({e})")));
+            self.push(Upload::Failed(format!("Open: the browser's file picker is not available ({e})")));
         }
     }
 
@@ -50,7 +57,9 @@ impl Inbox {
             .dyn_into::<web_sys::HtmlInputElement>()
             .map_err(|_| "could not create a file input".to_string())?;
         input.set_type("file");
-        input.set_accept(ACCEPT);
+        if !touch_device() {
+            input.set_accept(ACCEPT);
+        }
         input.set_id(INPUT_ID);
         input.set_attribute("style", "display:none").map_err(js_error)?;
         let (inbox, chosen) = (self.clone(), input.clone());
@@ -84,30 +93,48 @@ impl Inbox {
         let size = file.size();
         let len = if size.is_finite() && size >= 0.0 { size as u64 } else { u64::MAX };
         if let Some(e) = CadApp::open_size_error(&name, len) {
-            return self.push(Err(e));
+            return self.push(Upload::Failed(e));
         }
         let inbox = self.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            let r = match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
-                Ok(buf) => Ok((name, js_sys::Uint8Array::new(&buf).to_vec())),
-                Err(e) => Err(format!("Open: could not read {name}: {}", js_error(e))),
-            };
-            inbox.push(r);
+            match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
+                Ok(buf) => inbox.arrived(name, js_sys::Uint8Array::new(&buf).to_vec()),
+                Err(e) => inbox.push(Upload::Failed(format!("Open: could not read {name}: {}", js_error(e)))),
+            }
         });
+    }
+
+    /// A file's contents are here: open it on the next frame, a DWG once the DWG worker has
+    /// converted it.
+    fn arrived(&self, name: String, bytes: Vec<u8>) {
+        if !cadcraft_dwg::is_dwg(&bytes) {
+            return self.push(Upload::File(name, bytes, Vec::new()));
+        }
+        self.push(Upload::Progress(format!("Open: reading {name}…")));
+        let (inbox, file) = (self.clone(), name.clone());
+        let started = crate::dwg::read(bytes, move |r| {
+            inbox.push(match r {
+                Ok((dxf, notes)) => Upload::File(file, dxf, notes),
+                Err(e) => Upload::Failed(format!("Open: {file}: {e}")),
+            })
+        });
+        if let Err(e) = started {
+            self.push(Upload::Failed(format!("Open: {name}: {e}")));
+        }
     }
 
     /// A file read elsewhere (sent by the page embedding CADCraft): opened on the next frame like
     /// a picked file, or refused when too large to open.
     pub fn receive(&self, name: String, bytes: Vec<u8>) {
         match CadApp::open_size_error(&name, bytes.len() as u64) {
-            Some(e) => self.push(Err(e)),
-            None => self.push(Ok((name, bytes))),
+            Some(e) => self.push(Upload::Failed(e)),
+            None => self.arrived(name, bytes),
         }
     }
 
     /// A file from elsewhere refused before it was read (`error` says why).
     pub fn refuse(&self, error: String) {
-        self.push(Err(error));
+        self.push(Upload::Failed(error));
     }
 
     fn push(&self, upload: Upload) {
@@ -121,11 +148,24 @@ impl Inbox {
     pub fn drain(&self, app: &mut CadApp) {
         for upload in self.files.take() {
             match upload {
-                Ok((name, bytes)) => app.open_bytes(&name, &bytes),
-                Err(e) => app.open_failed(e),
+                Upload::File(name, bytes, notes) => {
+                    app.open_bytes(&name, &bytes);
+                    // What the DWG read left out (the DXF it converted to reads in full).
+                    for note in notes {
+                        app.open_failed(note);
+                    }
+                }
+                // On the command line only, so the status bar doesn't keep it once the file opens.
+                Upload::Progress(msg) => app.session.echo(msg),
+                Upload::Failed(msg) => app.open_failed(msg),
             }
         }
     }
+}
+
+/// True on a touch device (an iPad), whose file pickers filter by file type, not extension.
+fn touch_device() -> bool {
+    web_sys::window().is_some_and(|w| w.navigator().max_touch_points() > 0)
 }
 
 fn js_error(e: wasm_bindgen::JsValue) -> String {

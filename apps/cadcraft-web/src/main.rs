@@ -144,6 +144,10 @@ mod web {
                             // viewports stay in the layout's display list.
                             app.set_wgpu(rs, None);
                         }
+                        // Which build this is (the Pages workflow sets it), to tell a cached older one.
+                        if let Some(sha) = option_env!("CADCRAFT_BUILD_SHA").filter(|s| s.len() >= 7) {
+                            app.session.echo(format!("CADCraft web build {}", sha.get(..7).unwrap_or(sha)));
+                        }
                         if query().contains("sample") {
                             let _ = app.run("ui.sample", serde_json::json!({}));
                         }

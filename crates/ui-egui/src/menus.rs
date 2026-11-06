@@ -27,7 +27,6 @@ pub const UI_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
     ("ui.toggle.toolsets", "Tool Sets", &["Window", "Tool Sets"], Some("Cmd+3")),
     ("ui.panel.properties", "Properties Inspector", &["Window", "Properties Inspector"], Some("Cmd+1")),
     ("ui.panel.layers", "Layers Palette", &["Window", "Layers Palette"], None),
-    ("ui.panel.hatchpatterns", "Hatch Patterns Palette", &["Window", "Hatch Patterns Palette"], None),
     ("ui.panel.quickcalc", "QuickCalc", &["Window", "QuickCalc"], Some("Cmd+8")),
     ("ui.toggle.systemcursor", "Show System Cursor", &["View", "Accessibility", "Show System Cursor"], None),
     ("ui.animations.system", "Use System Setting", &["View", "Accessibility", "Animation Effects", "Use System Setting"], None),
@@ -105,9 +104,6 @@ fn run_ui_command_inner(app: &mut CadApp, id: &str, params: &Value) -> Option<Re
     }
     if matches!(id, "ui.dock" | "ui.dock.reset") {
         return Some(crate::docking::command(app, id == "ui.dock.reset", params));
-    }
-    if id == "ui.panel.hatchpatterns" {
-        return Some(crate::docking::command(app, false, &json!({"operation":"open", "panel":"hatchPatterns"})));
     }
     if matches!(id, "ui.panel.properties" | "ui.panel.layers") {
         let panel = if id == "ui.panel.properties" { "properties" } else { "layers" };

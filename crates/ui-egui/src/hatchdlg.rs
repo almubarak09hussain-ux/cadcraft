@@ -261,9 +261,11 @@ pub fn merge_picks(st: &mut HatchDlgState, picks: HatchPicks) {
     st.error = None;
 }
 
-/// Whether typed or menu HATCH and GRADIENT open the dialog (HPDLGMODE, default 1).
+/// Whether typed or menu HATCH and GRADIENT open the dialog (HPDLGMODE 1). By default (0) they
+/// ask for internal points at once, as AutoCAD does with its ribbon; the prompt's seTtings
+/// option and HPDLGMODE 1 bring the dialog.
 pub fn dialog_on(app: &CadApp) -> bool {
-    app.session.doc().is_ok_and(|d| d.header.i64("HPDLGMODE", 1) != 0)
+    app.session.doc().is_ok_and(|d| d.header.i64("HPDLGMODE", 0) == 1)
 }
 
 /// Create mode (HATCH, GRADIENT): the dialog from the drawing's hatch settings.
@@ -853,6 +855,13 @@ mod tests {
     #[test]
     fn typed_and_menu_hatch_open_the_dialog_but_dash_and_json_do_not() {
         let (mut app, _) = app_with_rect();
+        // By default HATCH asks for points at once (no dialog), as AutoCAD with its ribbon.
+        app.cmdline("hatch");
+        assert_eq!(app.ui.dialog, None);
+        assert!(app.session.prompt_text().contains("Pick internal point"), "{}", app.session.prompt_text());
+        app.session.cancel();
+        // HPDLGMODE 1: the Hatch and Gradient dialog.
+        app.run("setvar", json!({ "name": "HPDLGMODE", "value": 1 })).unwrap();
         app.cmdline("hatch");
         assert_eq!(app.ui.dialog.as_deref(), Some("hatch"));
         assert!(app.session.running.is_none());

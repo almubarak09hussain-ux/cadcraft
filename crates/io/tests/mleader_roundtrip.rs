@@ -289,3 +289,26 @@ fn a_user_block_arrowhead_is_kept_and_drawn() {
     let near_ring = list.verts.iter().any(|v| ((*v - tip).len() - 0.5).abs() < 0.02);
     assert!(near_ring, "the level mark's circle at the tip");
 }
+
+/// With the dogleg turned off on the entity (291 = 0) but a dogleg kept in its leader (direction
+/// 11, length 40), the leader runs to the dogleg's end, as AutoCAD draws it: straight to the
+/// content, not to the start of the (hidden) dogleg.
+#[test]
+fn a_disabled_dogleg_moves_the_leader_end_to_the_dogleg_end() {
+    let mut d = Drawing::new_metric();
+    d.add(&Space::Model, Common::default(), EntityKind::MLeader(text_mleader())).unwrap();
+    let (text, _) = roundtrip(&d);
+    // The entity's own "dogleg on" (after the context data closes) switched off.
+    let close = text.find("301\r\n}").expect("context data end");
+    let at = close + text[close..].find("291\r\n     1").or_else(|| text[close..].find("291\r\n1")).expect("entity dogleg flag");
+    let mut patched = text.clone();
+    let flag_end = at + text[at..].find('1').map(|i| i + 1).unwrap_or(0);
+    let rest = &text[flag_end..];
+    let one = rest.find('1').unwrap_or(0);
+    patched.replace_range(flag_end + one..flag_end + one + 1, "0");
+    let back = cadcraft_io::read_dxf(patched.as_bytes()).unwrap();
+    let m = mleaders(&back).into_iter().next().cloned().expect("a multileader");
+    assert_eq!(m.dogleg, 0.0);
+    // Landing 5,4 and a 0.75 dogleg towards the text (+x): the leader now ends at 5.75,4.
+    assert!((m.landing.x - 5.75).abs() < 1e-9 && (m.landing.y - 4.0).abs() < 1e-9, "{:?}", m.landing);
+}

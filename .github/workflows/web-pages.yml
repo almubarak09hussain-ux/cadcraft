@@ -66,6 +66,9 @@ jobs:
 
       - name: Build
         working-directory: apps/cadcraft-web
+        env:
+          # Shown on the command line at start, to tell a cached older version.
+          CADCRAFT_BUILD_SHA: ${{ github.sha }}
         run: |
           trunk --version
           trunk build --release

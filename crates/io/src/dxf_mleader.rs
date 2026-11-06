@@ -66,6 +66,8 @@ impl P {
 #[derive(Default)]
 struct Root {
     landing: P,
+    /// The dogleg's direction (11/21/31).
+    dir: P,
     dogleg: Option<f64>,
     lines: Vec<Vec<Vec3>>,
 }
@@ -229,6 +231,11 @@ fn parse(tags: &[Tag]) -> Parsed {
                         r.landing.take(10, c, f);
                     }
                 }
+                11 | 21 | 31 if root_kept => {
+                    if let Some(r) = p.roots.last_mut() {
+                        r.dir.take(11, c, f);
+                    }
+                }
                 40 if root_kept => {
                     if let Some(r) = p.roots.last_mut() {
                         r.dogleg = finite(f);
@@ -269,6 +276,20 @@ pub(crate) fn read(tags: &[Tag]) -> MLeader {
     let p = parse(tags);
     let def = MLeaderStyle::default();
     let pos = |v: Option<f64>| v.filter(|x| *x > 0.0);
+    // With the dogleg off a leader runs to the end of where its dogleg would be (the landing
+    // moved along the dogleg's direction by its length), as AutoCAD draws it: straight to the
+    // content, not to the dogleg's start.
+    let dogleg_off = p.dogleg_on == Some(false);
+    let end = |r: &Root| -> Option<Vec3> {
+        let land = r.landing.get()?;
+        match (dogleg_off, r.dir.get(), r.dogleg) {
+            (true, Some(d), Some(len)) if len.is_finite() && len > 0.0 && d.is_finite() => {
+                let n = (d.x * d.x + d.y * d.y).sqrt();
+                if n > 1e-12 { Some(Vec3::new(land.x + d.x / n * len, land.y + d.y / n * len, land.z)) } else { Some(land) }
+            }
+            _ => Some(land),
+        }
+    };
     // Leader lines: those of the first root run to its landing; a further root's lines get
     // their own landing as a last vertex (one landing per multileader here).
     let mut leaders: Vec<Vec<Vec3>> = Vec::new();
@@ -276,7 +297,7 @@ pub(crate) fn read(tags: &[Tag]) -> MLeader {
         for l in r.lines.iter().filter(|l| !l.is_empty()) {
             let mut l = l.clone();
             if i > 0
-                && let Some(land) = r.landing.get()
+                && let Some(land) = end(r)
             {
                 l.push(land);
             }
@@ -289,7 +310,7 @@ pub(crate) fn read(tags: &[Tag]) -> MLeader {
     }
     let text_location = p.text_location.get();
     let block_location = p.block_location.get();
-    let landing = p.roots.iter().find_map(|r| r.landing.get()).or(p.base.get()).or(text_location).or(block_location).unwrap_or(Vec3::ZERO);
+    let landing = p.roots.iter().find_map(end).or(p.base.get()).or(text_location).or(block_location).unwrap_or(Vec3::ZERO);
     let dogleg = if leaders.is_empty() || p.dogleg_on == Some(false) {
         0.0
     } else {

@@ -16,12 +16,10 @@ pub enum Panel {
     Properties,
     #[serde(rename = "externalReferences")]
     ExternalRefs,
-    /// The hatch pattern palette: a click hatches with the pattern.
-    HatchPatterns,
 }
 
 impl Panel {
-    pub const ALL: &[Self] = &[Self::Canvas, Self::ToolSets, Self::Layers, Self::Properties, Self::ExternalRefs, Self::HatchPatterns];
+    pub const ALL: &[Self] = &[Self::Canvas, Self::ToolSets, Self::Layers, Self::Properties, Self::ExternalRefs];
     pub fn id(self) -> &'static str {
         match self {
             Self::Canvas => "canvas",
@@ -30,7 +28,6 @@ impl Panel {
             Self::Layers => "layers",
             Self::Properties => "properties",
             Self::ExternalRefs => "externalReferences",
-            Self::HatchPatterns => "hatchPatterns",
         }
     }
     fn label(self) -> &'static str {
@@ -41,7 +38,6 @@ impl Panel {
             Self::Layers => "Layers",
             Self::Properties => "Properties",
             Self::ExternalRefs => "External References",
-            Self::HatchPatterns => "Hatch Patterns",
         }
     }
     fn default_side(self) -> Zone {
@@ -52,7 +48,6 @@ impl Panel {
             Self::Layers => Zone::Left,
             Self::Properties => Zone::Left,
             Self::ExternalRefs => Zone::Right,
-            Self::HatchPatterns => Zone::Right,
         }
     }
     /// Palettes outside the default arrangement, opened on request (QUICKCALC).
@@ -82,9 +77,8 @@ pub struct Workspace {
     pub hidden: Vec<(Panel, Location<Panel>)>,
 }
 
-/// The default arrangement: Layers over Properties on the left, half the height each; the
-/// drawing; the hatch pattern palette on the right. Tool Sets start closed (Tools ▸ Tool Sets, or
-/// the toolbar, opens them on the left).
+/// The default arrangement: Layers over Properties on the left, half the height each, then the
+/// drawing. Tool Sets start closed (Tools ▸ Tool Sets, or the toolbar, opens them on the left).
 impl Default for Workspace {
     fn default() -> Self {
         Self {
@@ -93,7 +87,7 @@ impl Default for Workspace {
                     SplitAxis::Horizontal,
                     SplitSize::FixedFirst(300.0),
                     split(SplitAxis::Vertical, SplitSize::Ratio(0.5), tabs(Panel::Layers), tabs(Panel::Properties)),
-                    split(SplitAxis::Horizontal, SplitSize::FixedSecond(250.0), tabs(Panel::Canvas), tabs(Panel::HatchPatterns)),
+                    tabs(Panel::Canvas),
                 )),
                 floating: Vec::new(),
             },
@@ -389,7 +383,6 @@ pub fn show(app: &mut crate::CadApp, ui: &mut egui::Ui) {
             Panel::ExternalRefs => {
                 egui::ScrollArea::both().id_salt("dock-xrefs").auto_shrink([false, false]).show(ui, |ui| crate::xrefs::section(app, ui));
             }
-            Panel::HatchPatterns => crate::palettes::patterns::panel(app, ui),
         },
     );
     // Existing panel close buttons and commands still own their visibility switches.
@@ -420,7 +413,6 @@ fn panel_limits(panel: &Panel) -> PanelLimits {
         Panel::QuickCalc => (egui::vec2(240.0, 160.0), 600.0),
         Panel::ToolSets => (egui::vec2(220.0, 150.0), 480.0),
         Panel::Layers | Panel::Properties | Panel::ExternalRefs => (egui::vec2(220.0, 100.0), 720.0),
-        Panel::HatchPatterns => (egui::vec2(160.0, 120.0), 600.0),
     };
     PanelLimits { min, max: egui::vec2(max_width, 1_000_000.0) }
 }
@@ -430,7 +422,7 @@ mod default_layout_tests {
     use super::*;
 
     #[test]
-    fn default_layout_has_layers_and_properties_left_and_hatch_patterns_right() {
+    fn default_layout_has_layers_and_properties_left_then_the_drawing() {
         let w = Workspace::default();
         w.validate().unwrap();
         assert!(!w.layout.contains(&Panel::ToolSets), "Tool Sets start closed");
@@ -440,9 +432,8 @@ mod default_layout_tests {
         assert!((r - 0.5).abs() < 1e-6);
         assert!(matches!(top.as_ref(), Node::Tabs { panels, .. } if panels == &[Panel::Layers]));
         assert!(matches!(bottom.as_ref(), Node::Tabs { panels, .. } if panels == &[Panel::Properties]));
-        // Right of the drawing: the hatch pattern palette, docked.
-        let Node::Split { second: right, .. } = second.as_ref() else { panic!("right") };
-        assert!(matches!(right.as_ref(), Node::Tabs { panels, .. } if panels == &[Panel::HatchPatterns]));
+        // Then the drawing, with nothing docked right of it.
+        assert!(matches!(second.as_ref(), Node::Tabs { panels, .. } if panels == &[Panel::Canvas]));
         assert!(w.layout.floating.is_empty());
     }
 

@@ -113,33 +113,6 @@ pub fn grid(ui: &mut egui::Ui, current: &str, filter: &str) -> Option<String> {
     chosen
 }
 
-/// The docked Hatch Patterns palette: a search box and the swatches. A click hatches with the
-/// pattern, as a tool palette's hatch tool does: at HATCH's pattern prompt it is the answer;
-/// otherwise it becomes the current pattern (HPNAME) and HATCH starts, asking for internal points.
-pub fn panel(app: &mut CadApp, ui: &mut egui::Ui) {
-    let filter_id = egui::Id::new("hatch_palette_filter");
-    let mut filter: String = ui.data_mut(|d| d.get_temp(filter_id)).unwrap_or_default();
-    ui.add(egui::TextEdit::singleline(&mut filter).hint_text(crate::tl!("Search for pattern")).desired_width(f32::INFINITY));
-    ui.data_mut(|d| d.insert_temp(filter_id, filter.clone()));
-    let current = app.session.doc().map(|d| d.header.str("HPNAME", "ANSI31")).unwrap_or_default();
-    let chosen =
-        egui::ScrollArea::vertical().id_salt("dock-hatch-patterns").auto_shrink([false, false]).show(ui, |ui| grid(ui, &current, &filter)).inner;
-    let Some(name) = chosen else { return };
-    let at_prompt = matches!(app.session.current_prompt().and_then(|p| p.picker), Some(Picker::HatchPattern(_)));
-    let r = if at_prompt {
-        app.session.input(cadcraft_engine::Input::Text(name))
-    } else {
-        if app.session.running.is_some() {
-            app.session.cancel();
-        }
-        let set = app.session.doc_mut().map(|d| d.header.set_str("HPNAME", &name.to_ascii_uppercase()));
-        set.and_then(|()| app.session.start("hatch"))
-    };
-    if let Err(e) = r {
-        app.session.echo(e.to_string());
-    }
-}
-
 /// The Properties palette's pattern menu: the swatch grid, scrolling; returns the pattern
 /// clicked.
 pub fn menu(ui: &mut egui::Ui, current: &str) -> Option<String> {

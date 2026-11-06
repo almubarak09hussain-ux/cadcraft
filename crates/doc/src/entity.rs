@@ -717,6 +717,10 @@ pub struct MLeader {
     /// Block content in place of the text: a block reference placed at the landing.
     #[serde(default)]
     pub block: Option<Insert>,
+    /// The arrowhead: empty for closed filled, a built-in name ("_DOT", "_ARCHTICK"…) or a
+    /// user block drawn at each leader's tip, `arrow_size` to a unit, turned along the leader.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub arrow_block: String,
 }
 
 impl MLeader {

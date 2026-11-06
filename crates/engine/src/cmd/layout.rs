@@ -831,8 +831,12 @@ fn run_plot(s: &mut Session, p: &Value, cmd: &str) -> Result<Value> {
                 std::fs::rename(&tmp, path).map_err(|e| bad(cmd, format!("{path}: {e}")))?;
                 Ok(json!({ "path": path, "bytes": bytes.len(), "layout": layout, "pages": pages }))
             }
+            // The web has no file system: the host delivers the file (a download, the share sheet).
             #[cfg(target_arch = "wasm32")]
-            Err(bad(cmd, "paths are not available on the web; omit `path` to get the PDF as base64 `data`"))
+            {
+                super::file::deliver_file(cmd, _path, &bytes)?;
+                Ok(json!({ "path": _path, "bytes": bytes.len(), "layout": layout, "pages": pages }))
+            }
         }
         None => Ok(json!({ "data": base64_encode(&bytes), "bytes": bytes.len(), "layout": layout, "pages": pages })),
     }

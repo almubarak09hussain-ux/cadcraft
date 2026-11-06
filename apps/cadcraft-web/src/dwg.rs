@@ -85,12 +85,12 @@ pub fn write_with(d: &Drawing, name: &str, opts: &cadcraft_io::SaveOptions) -> R
 pub fn deliver(name: &str, mime: &str, bytes: &[u8]) -> Result<(), String> {
     let version = PENDING_VERSION.with(|v| v.borrow_mut().take());
     let Some(version) = version.filter(|_| is_dwg_name(name) && !cadcraft_dwg::is_dwg(bytes)) else {
-        return crate::download::download(name, mime, bytes);
+        return crate::share::deliver(name, mime, bytes);
     };
     let file = name.to_string();
     convert("write", Some(version), bytes.to_vec(), move |r| match r {
         Ok((dwg, _)) => {
-            if let Err(e) = crate::download::download(&file, "application/acad", &dwg) {
+            if let Err(e) = crate::share::deliver(&file, "application/acad", &dwg) {
                 notice(format!("Save: {file} was not saved: {e}"));
             }
         }

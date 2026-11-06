@@ -942,6 +942,7 @@ fn entity(w: &mut W, d: &Drawing, e: &Entity, owner: &str, paper: bool, cx: &Ctx
                 style: cx.mleader_style(&m.style),
                 text_style: m.text.as_ref().and_then(|t| cx.style(&t.style)),
                 block: m.block.as_ref().and_then(|b| cx.block_records.get(&b.block.to_ascii_uppercase()).cloned()),
+                arrow: (!m.arrow_block.is_empty()).then(|| cx.block_records.get(&m.arrow_block.to_ascii_uppercase()).cloned()).flatten(),
             };
             w.t.extend(crate::dxf_mleader::entity_tags(d, m, &refs));
         }

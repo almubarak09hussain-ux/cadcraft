@@ -332,6 +332,74 @@ struct PublishState {
     sheets: Vec<(String, bool)>,
     /// One multi-sheet PDF instead of one PDF per sheet.
     combined: bool,
+    /// Print options for the whole batch.
+    opts: PublishOpts,
+}
+
+/// Batch print options: `None` keeps each sheet's page setup.
+#[derive(Clone)]
+struct PublishOpts {
+    /// Paper, orientation and scale for every sheet instead of each page setup's.
+    override_page: bool,
+    paper: String,
+    landscape: bool,
+    fit: bool,
+    scale: String,
+    lineweights: Option<bool>,
+    transparency: Option<bool>,
+}
+
+impl Default for PublishOpts {
+    fn default() -> Self {
+        PublishOpts {
+            override_page: false,
+            paper: "A3".into(),
+            landscape: true,
+            fit: true,
+            scale: "1:100".into(),
+            lineweights: None,
+            transparency: None,
+        }
+    }
+}
+
+impl PublishOpts {
+    /// The options as PLOT/PUBLISH parameters.
+    fn params(&self) -> serde_json::Map<String, Value> {
+        let mut m = serde_json::Map::new();
+        if self.override_page {
+            m.insert("paper".into(), json!(self.paper));
+            m.insert("landscape".into(), json!(self.landscape));
+            m.insert("fit".into(), json!(self.fit));
+            if !self.fit {
+                m.insert("scale".into(), json!(self.scale.trim()));
+            }
+        }
+        if let Some(b) = self.lineweights {
+            m.insert("lineweights".into(), json!(b));
+        }
+        if let Some(b) = self.transparency {
+            m.insert("plotTransparency".into(), json!(b));
+        }
+        m
+    }
+}
+
+/// A Keep / On / Off choice.
+fn keep_on_off(ui: &mut egui::Ui, id: &str, label: &str, v: &mut Option<bool>) {
+    ui.horizontal(|ui| {
+        ui.label(crate::i18n::t(label));
+        let shown = match v {
+            None => crate::tl!("Page setup"),
+            Some(true) => crate::tl!("On"),
+            Some(false) => crate::tl!("Off"),
+        };
+        egui::ComboBox::from_id_salt(id).selected_text(shown).show_ui(ui, |ui| {
+            ui.selectable_value(v, None, crate::tl!("Page setup"));
+            ui.selectable_value(v, Some(true), crate::tl!("On"));
+            ui.selectable_value(v, Some(false), crate::tl!("Off"));
+        });
+    });
 }
 
 fn sheet_names(app: &CadApp) -> Vec<String> {
@@ -342,13 +410,12 @@ fn sheet_names(app: &CadApp) -> Vec<String> {
 }
 
 fn publish(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
-    let t = Tokens::get();
     let id = egui::Id::new("publish_state");
     let names = sheet_names(app);
     let mut st = ctx.data_mut(|d| d.get_temp::<PublishState>(id)).filter(|s| s.sheets.iter().map(|(n, _)| n).eq(names.iter())).unwrap_or_else(|| {
         // Every layout, and Model only when there are no layouts (AutoCAD's default list).
         let only_model = names.len() == 1;
-        PublishState { sheets: names.iter().map(|n| (n.clone(), only_model || n != "Model")).collect(), combined: true }
+        PublishState { sheets: names.iter().map(|n| (n.clone(), only_model || n != "Model")).collect(), combined: true, opts: PublishOpts::default() }
     });
     let title = app.session.state().map(|s| s.title.clone()).unwrap_or_default();
     let stem = std::path::Path::new(&title)
@@ -388,8 +455,39 @@ fn publish(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
             ui.label(RichText::new(crate::tl!("PDF output")).strong());
             ui.radio_value(&mut st.combined, true, crate::tl!("Multi-sheet file (one PDF, a page per sheet)"));
             ui.radio_value(&mut st.combined, false, crate::tl!("A separate PDF for each sheet"));
+            ui.separator();
+            ui.label(RichText::new(crate::tl!("Print options")).strong());
+            let o = &mut st.opts;
+            ui.radio_value(&mut o.override_page, false, crate::tl!("Each sheet's own page setup"));
+            ui.radio_value(&mut o.override_page, true, crate::tl!("The same paper and scale for every sheet"));
+            ui.add_enabled_ui(o.override_page, |ui| {
+                ui.indent("publish_page", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(crate::tl!("Paper"));
+                        let shown = cadcraft_render::paper_size(&o.paper).map_or_else(|| o.paper.clone(), |p| p.name.to_string());
+                        egui::ComboBox::from_id_salt("publish_paper").selected_text(shown).width(220.0).show_ui(ui, |ui| {
+                            for p in cadcraft_render::PAPER_SIZES {
+                                let alias = p.aliases.first().copied().unwrap_or(p.name);
+                                ui.selectable_value(&mut o.paper, alias.to_string(), p.name);
+                            }
+                        });
+                    });
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut o.landscape, false, crate::tl!("Portrait"));
+                        ui.radio_value(&mut o.landscape, true, crate::tl!("Landscape"));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut o.fit, crate::tl!("Fit to paper"));
+                        ui.add_enabled_ui(!o.fit, |ui| {
+                            ui.label(crate::tl!("Scale"));
+                            ui.add(egui::TextEdit::singleline(&mut o.scale).desired_width(70.0).hint_text("1:100"));
+                        });
+                    });
+                });
+            });
+            keep_on_off(ui, "publish_lw", "Plot with lineweights", &mut o.lineweights);
+            keep_on_off(ui, "publish_tr", "Plot transparency", &mut o.transparency);
             let count = st.sheets.iter().filter(|s| s.1).count();
-            ui.label(RichText::new(crate::tl!("Each sheet plots with its page setup.")).small().color(t.text_dim));
             ui.separator();
             ui.horizontal(|ui| {
                 go = ui.add_enabled(count > 0, egui::Button::new(crate::tl!("Publish"))).clicked();
@@ -411,8 +509,12 @@ fn publish(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
             None => None,
         };
         let path = path.map(|p| if p.to_ascii_lowercase().ends_with(".pdf") { p } else { format!("{p}.pdf") });
+        let extra = st.opts.params();
         let r = if st.combined {
             let mut p = json!({ "layouts": chosen });
+            if let Some(o) = p.as_object_mut() {
+                o.extend(extra.clone());
+            }
             if let Some(path) = &path {
                 p["path"] = json!(path);
             }
@@ -422,6 +524,9 @@ fn publish(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
             })
         } else {
             let mut p = json!({ "layouts": chosen });
+            if let Some(o) = p.as_object_mut() {
+                o.extend(extra);
+            }
             if let Some(path) = &path {
                 p["path"] = json!(path);
             }

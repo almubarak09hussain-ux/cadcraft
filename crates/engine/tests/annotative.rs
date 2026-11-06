@@ -315,6 +315,7 @@ fn annotative_mtext_columns_follow_the_scale() {
     };
     let ml = Entity {
         kind: EntityKind::MLeader(cadcraft_engine::doc::MLeader {
+            arrow_block: String::new(),
             leaders: Vec::new(),
             landing: Default::default(),
             dogleg: 1.0,

@@ -73,6 +73,27 @@ pub fn deliver() -> Option<DeliverHook> {
     DELIVER.get().copied()
 }
 
+/// The MIME type of a file CADCraft writes, from its name.
+pub fn mime_for(name: &str) -> &'static str {
+    match std::path::Path::new(name).extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).as_deref() {
+        Some("pdf") => "application/pdf",
+        Some("png") => "image/png",
+        Some("svg") => "image/svg+xml",
+        Some("dxf") => "image/vnd.dxf",
+        Some("dwg" | "dwt") => "application/acad",
+        Some("csv") => "text/csv",
+        _ => "application/octet-stream",
+    }
+}
+
+/// Hand a file a command wrote to the host's delivery ([`deliver`]) under `path`'s file name: on
+/// the web, where there are no paths, a plot, export or published sheet reaches the user this way.
+pub fn deliver_file(cmd: &str, path: &str, bytes: &[u8]) -> Result<()> {
+    let name = file_name(path);
+    let deliver = deliver().ok_or_else(|| bad(cmd, "writing files is not available in this build; omit `path` to get base64 `data`"))?;
+    deliver(&name, mime_for(&name), bytes).map_err(|e| bad(cmd, format!("{name}: {e}")))
+}
+
 /// How a drawing file is written: its version (`None`: the drawing's own, `$ACADVER`) and
 /// binary instead of ASCII DXF.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

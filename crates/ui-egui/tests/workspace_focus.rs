@@ -8,6 +8,8 @@ use egui_kittest::kittest::Queryable;
 
 fn harness() -> Harness<'static, CadApp> {
     let mut app = CadApp::new(Session::default(), Services::default());
+    // Tool Sets are closed by default; these tests use them.
+    app.ui.show_toolsets = true;
     app.integrated_titlebar = true;
     app.ui.in_window_menu = false;
     let mut h = Harness::builder().with_size(vec2(1600.0, 1000.0)).build_ui_state(

@@ -25,7 +25,7 @@ serde_json = { workspace = true }
 
 # File > Open… and dropped files (src/upload.rs): the browser's file picker and file reads.
 [target.wasm32-unknown-unknown.dependencies]
-web-sys = { version = "0.3", features = ["HtmlInputElement", "FileList", "File"] }
+web-sys = { version = "0.3", features = ["HtmlInputElement", "FileList", "File", "FilePropertyBag"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 eframe = { workspace = true, features = ["persistence", "default_fonts", "wgpu", "accesskit"] }

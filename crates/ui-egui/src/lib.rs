@@ -160,7 +160,8 @@ impl Default for UiState {
             docking: docking::Workspace::default(),
 
             interface_language: i18n::Preference::default(),
-            show_toolsets: true,
+            // Closed by default: Layers and Properties take the left side.
+            show_toolsets: false,
             show_palettes: true,
             show_toolbar: true,
             show_file_tabs: true,

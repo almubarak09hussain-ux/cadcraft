@@ -18,6 +18,7 @@ fn mleaders(d: &Drawing) -> Vec<&MLeader> {
 
 fn text_mleader() -> MLeader {
     MLeader {
+        arrow_block: String::new(),
         leaders: vec![vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(2.0, 3.0, 0.0)], vec![Vec3::new(1.0, -2.0, 0.0)]],
         landing: Vec3::new(5.0, 4.0, 0.0),
         dogleg: 0.75,
@@ -123,6 +124,7 @@ fn spline_leader_with_block_content_and_attributes() {
         modes: Default::default(),
     });
     let m = MLeader {
+        arrow_block: String::new(),
         leaders: vec![vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(4.0, 5.0, 0.0), Vec3::new(8.0, 4.0, 0.0)]],
         landing: Vec3::new(10.0, 3.0, 0.0),
         dogleg: 1.0,
@@ -264,4 +266,26 @@ fn multileader_through_dwg() {
     let got = mleaders(&back);
     assert_eq!(got.len(), 1, "{:?}", back.model.iter().map(|e| e.kind.dxf_name()).collect::<Vec<_>>());
     assert_eq!(*got[0], m);
+}
+
+/// A multileader whose arrowhead is a user block (a level mark): kept through save and reopen,
+/// and drawn as the block at the leader's tip instead of the closed filled arrow.
+#[test]
+fn a_user_block_arrowhead_is_kept_and_drawn() {
+    let mut d = Drawing::new_metric();
+    let mut b = Block::new("LVL_MARK");
+    let circle = EntityKind::Circle(Circle { center: Vec3::new(0.0, 0.0, 0.0), radius: 1.0 });
+    b.entities.push(Entity::new(Handle(0x9100), circle));
+    d.blocks.insert("LVL_MARK".into(), std::sync::Arc::new(b));
+    let m = MLeader { arrow_block: "LVL_MARK".into(), arrow_size: 0.5, ..text_mleader() };
+    d.add(&Space::Model, Common::default(), EntityKind::MLeader(m)).unwrap();
+    let (text, back) = roundtrip(&d);
+    assert!(text.contains("342\r\n") || text.contains("342\n"), "the arrowhead block's handle");
+    assert_eq!(mleaders(&back).first().map(|m| m.arrow_block.as_str()), Some("LVL_MARK"));
+    // Drawn as the block: a circle of radius 0.5 (arrow size) around the first leader's tip,
+    // which is no filled triangle.
+    let list = cadcraft_render::build(&back, &Space::Model, &cadcraft_render::Options::default());
+    let tip = cadcraft_geom::Vec2::new(0.0, 0.0);
+    let near_ring = list.verts.iter().any(|v| ((*v - tip).len() - 0.5).abs() < 0.02);
+    assert!(near_ring, "the level mark's circle at the tip");
 }

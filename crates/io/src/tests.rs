@@ -1546,6 +1546,7 @@ fn mleader_is_written_as_multileader() {
         columns: None,
     };
     let m = cadcraft_doc::MLeader {
+        arrow_block: String::new(),
         leaders: vec![vec![Vec3::new(0.0, 0.0, 0.0)]],
         landing: Vec3::new(10.0, 5.0, 0.0),
         dogleg: 2.0,

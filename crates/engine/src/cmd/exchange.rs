@@ -47,7 +47,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .noundo(),
         CommandSpec::new("publish", "Batch Publish...", run_publish)
             .menu(&["File", "Batch Publish..."])
-            .params("{path?: \"NAME.pdf\" (writes NAME-<sheet>.pdf per sheet; else returns base64 `data` per sheet), layouts?: [name | \"Model\"] (default: Model if it has objects, then every layout in tab order)} → {sheets: [{layout, bytes, path? | data}]}")
+            .params("{path?: \"NAME.pdf\" (writes NAME-<sheet>.pdf per sheet; else returns base64 `data` per sheet), layouts?: [name | \"Model\"] (default: Model if it has objects, then every layout in tab order), paper?, landscape?, fit?, scale?, lineweights?, plotTransparency?, plotStyleTable? (PLOT's overrides, for every sheet)} → {sheets: [{layout, bytes, path? | data}]}")
             .noundo(),
         CommandSpec::new("pdfbook", "Sheet Books to PDF...", run_pdfbook)
             .menu(&["File", "Sheet Books to PDF..."])
@@ -84,11 +84,9 @@ fn write_file(cmd: &str, path: &str, bytes: &[u8]) -> Result<()> {
         std::fs::rename(&tmp, path).map_err(|e| bad(cmd, format!("{path}: {e}")))?;
         Ok(())
     }
+    // The web has no file system: the host delivers the file (a download, the share sheet).
     #[cfg(target_arch = "wasm32")]
-    {
-        let _ = (path, bytes);
-        Err(bad(cmd, "paths are not available on the web; omit `path` to get the file as base64 `data`"))
-    }
+    super::file::deliver_file(cmd, path, bytes)
 }
 
 // ---------- EXPORT ----------
@@ -371,6 +369,9 @@ fn file_part(name: &str) -> String {
     name.chars().map(|c| if c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') { c } else { '_' }).collect()
 }
 
+/// PLOT options PUBLISH passes on to every sheet.
+const PUBLISH_OVERRIDES: &[&str] = &["paper", "landscape", "fit", "scale", "lineweights", "plotTransparency", "plotStyleTable", "device"];
+
 fn run_publish(s: &mut Session, p: &Value) -> Result<Value> {
     let d = s.doc()?;
     let sheets: Vec<String> = match p.get("layouts") {
@@ -407,6 +408,12 @@ fn run_publish(s: &mut Session, p: &Value) -> Result<Value> {
     let mut out = Vec::new();
     for name in &sheets {
         let mut q = json!({ "layout": name });
+        // Overrides for the whole batch (each sheet's page setup otherwise).
+        for key in PUBLISH_OVERRIDES {
+            if let (Some(v), Some(o)) = (p.get(*key), q.as_object_mut()) {
+                o.insert((*key).to_string(), v.clone());
+            }
+        }
         if let Some((dir, stem)) = &base {
             q["path"] = json!(dir.join(format!("{stem}-{}.pdf", file_part(name))).to_string_lossy());
         }

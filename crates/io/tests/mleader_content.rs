@@ -11,6 +11,7 @@ fn spline_leader_and_block_content_are_written() {
     blk.entities.push(Entity::new(Handle(0x100), EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(1.0, 1.0, 0.0) })));
     d.blocks.insert(blk.name.clone(), std::sync::Arc::new(blk));
     let m = MLeader {
+        arrow_block: String::new(),
         leaders: vec![vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(5.0, 5.0, 0.0)]],
         landing: Vec3::new(10.0, 0.0, 0.0),
         dogleg: 1.0,

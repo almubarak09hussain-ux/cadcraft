@@ -16,6 +16,8 @@ pub mod download;
 mod dwg;
 #[cfg(target_arch = "wasm32")]
 mod host;
+#[cfg(target_arch = "wasm32")]
+mod share;
 
 #[cfg(target_arch = "wasm32")]
 mod web {

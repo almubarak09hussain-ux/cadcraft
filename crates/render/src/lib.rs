@@ -1311,7 +1311,7 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
             for pts in m.leader_paths() {
                 b.polyline(ctx, rgb, lw, &pts);
                 if let (Some(a), Some(n)) = (pts.first(), pts.get(1)) {
-                    b.tris(ctx, rgb, &dim::arrow(*a, (*a - *n).normalized(), m.arrow_size));
+                    mleader_arrow(b, ctx, e, m, *a, (*a - *n).normalized(), rgb, lw);
                 }
             }
             if let Some(t) = &m.text {
@@ -1588,6 +1588,35 @@ fn sub_ctx<'a>(ctx: &Ctx<'a>, e: &Entity, m: Mat3) -> Ctx<'a> {
         // The reference's own, set by the caller (`Builder::transparency` while it draws).
         block_transparency: ctx.block_transparency,
     }
+}
+
+/// A multileader's arrowhead at tip `a`, pointing along `dir`: its user block (scaled by the
+/// arrow size, turned along the leader, its +X axis pointing out of the tip) when the drawing
+/// has one by that name, else the built-in arrowhead it names (closed filled when none).
+#[allow(clippy::too_many_arguments)]
+fn mleader_arrow(b: &mut Builder, ctx: &Ctx, e: &Entity, m: &cadcraft_doc::MLeader, a: Vec2, dir: Vec2, rgb: Ink, lw: f32) {
+    let name = m.arrow_block.trim();
+    if !name.is_empty() && !name.starts_with('_') && ctx.d.block(name).is_some() {
+        let s = m.arrow_size;
+        let ins = cadcraft_doc::Insert {
+            block: name.to_string(),
+            insert: a.to3(0.0),
+            scale: cadcraft_geom::Vec3::new(s, s, s),
+            rotation: dir.y.atan2(dir.x),
+            attribs: Vec::new(),
+            cols: 1,
+            rows: 1,
+            col_spacing: 0.0,
+            row_spacing: 0.0,
+        };
+        insert(b, ctx, e, &ins, rgb);
+        return;
+    }
+    let g = dim::arrowhead(dim::Arrowhead::parse(name), a, dir, m.arrow_size);
+    for l in &g.lines {
+        b.polyline(ctx, rgb, lw, l);
+    }
+    b.tris(ctx, rgb, &g.tris);
 }
 
 fn insert(b: &mut Builder, ctx: &Ctx, e: &Entity, ins: &cadcraft_doc::Insert, rgb: Ink) {

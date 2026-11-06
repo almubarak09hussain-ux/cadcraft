@@ -13,8 +13,14 @@ fn harness(state: Option<UiState>, width: f32, scale: f32) -> Harness<'static, C
     app.run("circle", json!({"center":[100,70],"radius":26})).unwrap();
     app.run("line", json!({"points":[[30,30],[170,110]]})).unwrap();
     app.run("view.set", json!({"center":[100,70],"height":220})).unwrap();
-    if let Some(state) = state {
-        app.ui = state;
+    match state {
+        Some(state) => app.ui = state,
+        // These workflows start from the classic arrangement (Tool Sets, and the Layers /
+        // Properties stack); the default one is checked in `docking.rs`.
+        None => {
+            app.ui.docking = cadcraft_ui_egui::docking::Workspace::classic();
+            app.ui.show_toolsets = true;
+        }
     }
     app.ui.in_window_menu = false;
     app.integrated_titlebar = true;

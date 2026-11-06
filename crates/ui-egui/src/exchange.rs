@@ -184,10 +184,13 @@ mod tests {
     fn typed_and_menu_commands_ask_json_calls_never_do() {
         let (mut app, asked) = app();
         app.start("export");
-        app.cmdline("PUBLISH");
         app.start("imp");
-        assert_eq!(*asked.borrow(), ["Drawing1.svg", "Drawing1.pdf", "open"]);
+        assert_eq!(*asked.borrow(), ["Drawing1.svg", "open"]);
         assert!(app.ui.dialog.is_none());
+        // PUBLISH opens the Batch Publish dialog, which asks for the file when Publish is pressed.
+        app.cmdline("PUBLISH");
+        assert_eq!(app.ui.dialog.as_deref(), Some("publish"));
+        app.ui.dialog = None;
         app.cmdline("pre");
         assert_eq!(app.ui.dialog.as_deref(), Some("preview"));
         app.ui.dialog = None;
@@ -200,7 +203,7 @@ mod tests {
         let _ = app.run("publish", json!({ "layouts": [] }));
         let r = app.run("preview", json!({ "width": 64 })).unwrap();
         assert!(r["data"].is_string());
-        assert_eq!(asked.borrow().len(), 3, "JSON calls never open a file dialog");
+        assert_eq!(asked.borrow().len(), 2, "JSON calls never open a file dialog");
         assert!(app.ui.dialog.is_none(), "nor the preview window");
 
         let e = app.run("share", json!({})).unwrap_err();

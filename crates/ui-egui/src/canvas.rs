@@ -1864,19 +1864,39 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
 /// The model space tiles on screen (none without tiling): each tile's rectangle in `full`.
 /// Start TEXTEDIT on the text, mtext or attribute definition at `p` (the objects its shortcut menu
 /// offers Edit Text for); false when there is none.
+/// Double-click edits, as in AutoCAD: text, multiline text and attribute definitions open in
+/// place (TEXTEDIT with the object picked; it then asks for the next one, as AutoCAD's does); a
+/// block reference with attributes opens the Enhanced Attribute Editor, a multiline Multiline
+/// Edit Tools.
 fn edit_text_at(app: &mut CadApp, p: Vec2) -> bool {
     use cadcraft_engine::doc::EntityKind;
-    let is_text = cadcraft_engine::cmd::curves::pick_at(&app.session, p).and_then(|h| {
-        app.session.doc().ok()?.entity(h).map(|e| matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_) | EntityKind::AttDef(_)))
+    let Some(h) = cadcraft_engine::cmd::curves::pick_at(&app.session, p) else { return false };
+    let kind = app.session.doc().ok().and_then(|d| d.entity(h)).map(|e| match e.kind {
+        EntityKind::Text(_) | EntityKind::MText(_) | EntityKind::AttDef(_) => 1,
+        EntityKind::Insert(_) => 2,
+        EntityKind::MLine(_) => 3,
+        _ => 0,
     });
-    if is_text != Some(true) {
-        return false;
+    match kind {
+        Some(1) => {
+            app.start("textedit");
+            if let Err(e) = app.session.input(Input::Point(p)) {
+                app.session.echo(e.to_string());
+            }
+            true
+        }
+        Some(2) if crate::editdlg::has_editable_attributes(app, h) => {
+            crate::editdlg::open_attedit(app, h);
+            true
+        }
+        // A multiline opens Multiline Edit Tools, as in AutoCAD.
+        Some(3) => {
+            app.session.set_selection(Vec::new());
+            app.ui.dialog = Some("mledit".into());
+            true
+        }
+        _ => false,
     }
-    app.start("textedit");
-    if let Err(e) = app.session.input(Input::Point(p)) {
-        app.session.echo(e.to_string());
-    }
-    true
 }
 
 fn tile_rects(app: &CadApp, full: Rect) -> Vec<(Rect, cadcraft_engine::ModelTile)> {
@@ -2625,6 +2645,95 @@ mod hatch_pick_tests {
         assert_eq!(super::hatch_at(&app, Vec2::new(5.0, 5.0), 10.0).map(|h| h.hex()), Some(hx));
         assert_eq!(super::hatch_at(&app, Vec2::new(25.0, 0.0), 10.0), None, "a line is not a hatch");
         assert_eq!(super::hatch_at(&app, Vec2::new(60.0, 60.0), 10.0), None);
+    }
+
+    /// Double-click the canvas at world point `w` (one frame to lay it out first).
+    fn double_click_world(app: &mut CadApp, w: Vec2) {
+        let ctx = egui::Context::default();
+        let screen = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 1000.0)));
+        let frame = |app: &mut CadApp, events: Vec<egui::Event>, time: f64| {
+            app.logic(&ctx);
+            let input = egui::RawInput { screen_rect: screen, events, time: Some(time), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| app.ui(ui));
+            out.textures_delta.clear();
+        };
+        frame(app, Vec::new(), 0.0);
+        let at = app.canvas.xf.unwrap().to_screen(w);
+        let button =
+            |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() };
+        frame(app, vec![egui::Event::PointerMoved(at)], 0.1);
+        frame(app, vec![button(true), button(false)], 0.2);
+        frame(app, vec![button(true), button(false)], 0.3);
+        frame(app, Vec::new(), 0.4);
+    }
+
+    #[test]
+    fn double_clicking_text_edits_its_whole_text_in_place() {
+        let mut app = CadApp::new(Session::new(), Services::default());
+        let long = "A TEXT LONGER THAN THE FORTY CHARACTERS THE PROMPT SHOWS";
+        app.session.execute("text", &json!({ "at": [0, 0], "height": 2.5, "text": long })).unwrap();
+        let _ = app.session.zoom_extents();
+        // The middle of the view: the text's middle, clear of the panels at the sides.
+        let mid = app.session.state().unwrap().view().center;
+        double_click_world(&mut app, mid);
+        let edit = app.session.editing_text().expect("the one-line editor's text");
+        assert_eq!(edit.text, long);
+        assert!(app.session.editing_mtext().is_none());
+        // Enter with a new text applies it; TEXTEDIT then asks for the next object.
+        app.session.input(cadcraft_engine::Input::Text("EDITED".into())).unwrap();
+        assert!(app.session.editing_text().is_none());
+        let d = app.session.doc().unwrap();
+        assert!(d.model.iter().any(|e| matches!(&e.kind, cadcraft_engine::doc::EntityKind::Text(t) if t.value == "EDITED")));
+    }
+
+    #[test]
+    fn double_clicking_mtext_opens_the_mtext_editor_with_its_contents() {
+        let mut app = CadApp::new(Session::new(), Services::default());
+        app.session.execute("mtext", &json!({ "at": [0, 0], "height": 2.5, "width": 40, "text": "FIRST\\PSECOND" })).unwrap();
+        let _ = app.session.zoom_extents();
+        let contents = app.session.doc().unwrap().model.iter().find_map(|e| match &e.kind {
+            cadcraft_engine::doc::EntityKind::MText(m) => Some(m.contents.clone()),
+            _ => None,
+        });
+        let mid = app.session.state().unwrap().view().center;
+        double_click_world(&mut app, mid);
+        assert_eq!(app.session.editing_mtext().map(|m| m.contents), contents);
+        assert!(app.session.editing_text().is_none());
+    }
+
+    #[test]
+    fn double_clicking_a_block_with_attributes_opens_the_attribute_editor() {
+        let mut app = CadApp::new(Session::new(), Services::default());
+        let s = &mut app.session;
+        s.execute("circle", &json!({"center": [0, 0], "radius": 1})).unwrap();
+        s.execute("attdef", &json!({"tag": "TAG", "prompt": "Tag?", "default": "A1", "at": [1.2, 0]})).unwrap();
+        s.execute("selectall", &json!({})).unwrap();
+        for line in ["block", "Valve", "0,0"] {
+            s.cmdline(line).unwrap();
+        }
+        let _ = app.session.zoom_extents();
+        let h = app.session.doc().unwrap().model.iter().next().unwrap().handle;
+        double_click_world(&mut app, Vec2::new(1.0, 0.0));
+        assert_eq!(app.ui.dialog, Some(format!("attedit:{}", h.hex())));
+        assert!(app.session.running.is_none());
+        // The dialog's OK runs ATTEDIT with the values.
+        app.run("attedit", json!({ "handle": h.hex(), "values": { "TAG": "V-7" } })).unwrap();
+        let d = app.session.doc().unwrap();
+        assert!(matches!(&d.entity(h).unwrap().kind, cadcraft_engine::doc::EntityKind::Insert(i) if i.attribs[0].text.value == "V-7"));
+    }
+
+    #[test]
+    fn publish_from_the_menu_opens_the_publish_dialog() {
+        let mut app = CadApp::new(Session::new(), Services::default());
+        app.start("publish");
+        assert_eq!(app.ui.dialog.as_deref(), Some("publish"));
+        // With parameters PUBLISH still runs the command.
+        app.ui.dialog = None;
+        app.session.execute("line", &json!({ "points": [[0, 0], [10, 0]] })).unwrap();
+        // (This test build has no PDF writer: the command runs and reports that.)
+        let r = app.run("publish", json!({ "layouts": ["Model"] }));
+        assert!(r.is_err_and(|e| e.contains("plotting is not available")));
+        assert!(app.ui.dialog.is_none());
     }
 
     #[test]

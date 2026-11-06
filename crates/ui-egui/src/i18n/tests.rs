@@ -98,6 +98,8 @@ fn missing_marked_ui_literals(language: &str) -> BTreeSet<String> {
         include_str!("../dialogs.rs"),
         include_str!("../hatchdlg.rs"),
         include_str!("../mtext_editor.rs"),
+        include_str!("../editdlg.rs"),
+        include_str!("../formatdlg.rs"),
         include_str!("../layers.rs"),
         include_str!("../canvas/compare.rs"),
         include_str!("../canvas/blockedit.rs"),

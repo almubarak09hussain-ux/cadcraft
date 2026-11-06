@@ -3,6 +3,10 @@
 //! underline, overline, colour, alignment, lists, tabs) and a ruler for the paragraph's indents
 //! and tab stops. The text and its formats live in the engine's
 //! [`cadcraft_engine::mtext_edit::Formatted`]; this file only draws and forwards edits.
+//!
+//! The same editor opens on an existing MTEXT that TEXTEDIT picked (a double-click on it), filled
+//! with its contents; other text TEXTEDIT picks (text, attribute definitions, dimensions) opens in
+//! a one-line box at the text ([`show_line`]).
 
 use std::sync::Arc;
 
@@ -66,7 +70,8 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context) {
     let t = Tokens::get();
     let (rect, scale) = app.canvas.xf.map_or((ctx.content_rect(), 20.0), |x| (x.rect, x.scale.max(1e-6)));
     let mut st = ctx.data_mut(|d| d.get_temp::<State>(state_id())).unwrap_or_else(|| {
-        let mut fmt = Formatted::default();
+        // TEXTEDIT hands over the MTEXT it edits; MTEXT starts empty.
+        let mut fmt = if mt.contents.is_empty() { Formatted::default() } else { Formatted::from_contents(&mt.contents) };
         if let Some(f) = app.session.doc().ok().and_then(|d| d.text_style(&mt.style).map(|s| s.font.clone())) {
             // A family name, not a font file (`txt.shx`, `arial.ttf`).
             if !f.is_empty() && !f.contains('.') {
@@ -122,8 +127,15 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context) {
         Done::Ok => {
             ctx.data_mut(|d| d.remove::<State>(state_id()));
             // The editor holds the whole contents: one input, then Enter ends MTEXT's text entry.
-            if !st.fmt.is_empty() {
-                let _ = app.session.input(cadcraft_engine::Input::Text(st.fmt.to_contents()));
+            // TEXTEDIT left empty keeps the old text (Enter), as AutoCAD does.
+            let mtext = app.session.running.as_ref().is_some_and(|r| r.id == "mtext");
+            let r = match (st.fmt.is_empty(), mtext) {
+                (false, _) => app.session.input(cadcraft_engine::Input::Text(st.fmt.to_contents())),
+                (true, false) => app.session.input(cadcraft_engine::Input::Enter),
+                (true, true) => Ok(()),
+            };
+            if let Err(e) = r {
+                app.session.echo(e.to_string());
             }
             if app.session.running.as_ref().is_some_and(|r| r.id == "mtext") {
                 let _ = app.session.input(cadcraft_engine::Input::Enter);
@@ -131,6 +143,75 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context) {
         }
         Done::Cancel => {
             ctx.data_mut(|d| d.remove::<State>(state_id()));
+            app.session.cancel();
+        }
+    }
+}
+
+/// The one-line in-place editor: while TEXTEDIT asks for the new text of a text, attribute
+/// definition or dimension, a text box at the text holds its whole text. Enter applies it, Esc
+/// keeps the old text.
+pub fn show_line(app: &mut CadApp, ctx: &egui::Context) {
+    let id = egui::Id::new("text_line_editor");
+    let asking = app.session.current_prompt().is_some_and(|p| p.accept.text && !p.accept.point);
+    let (Some(edit), true) = (app.session.editing_text(), asking) else {
+        ctx.data_mut(|d| d.remove::<(cadcraft_engine::doc::Handle, String)>(id));
+        return;
+    };
+    let t = Tokens::get();
+    let mut text = ctx
+        .data_mut(|d| d.get_temp::<(cadcraft_engine::doc::Handle, String)>(id))
+        .filter(|(h, _)| *h == edit.handle)
+        .map_or_else(|| edit.text.clone(), |(_, s)| s);
+    let (rect, scale) = app.canvas.xf.map_or((ctx.content_rect(), 20.0), |x| (x.rect, x.scale.max(1e-6)));
+    let px = ((edit.height * scale) as f32).clamp(MIN_PX, MAX_PX);
+    let width = (text.chars().count() as f32 * px * 0.7 + 60.0).clamp(220.0, (rect.width() * 0.9).max(220.0));
+    let at = app.canvas.xf.map_or(rect.center(), |x| x.to_screen(edit.at));
+    let pos = pos2(
+        at.x.clamp(rect.left(), (rect.right() - width).max(rect.left())),
+        (at.y - px - 12.0).clamp(rect.top(), (rect.bottom() - px - 40.0).max(rect.top())),
+    );
+    let mut done = Done::No;
+    egui::Area::new(egui::Id::new("text_line_editor_area")).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
+        egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.accent)).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
+            let r = ui.add(egui::TextEdit::singleline(&mut text).id(edit_id().with("line")).font(FontId::proportional(px)).desired_width(width));
+            if !r.has_focus() && !r.lost_focus() {
+                r.request_focus();
+            }
+            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                done = Done::Ok;
+            }
+            ui.horizontal(|ui| {
+                if ui.button(crate::tl!("OK")).clicked() {
+                    done = Done::Ok;
+                }
+                if ui.button(crate::tl!("Cancel")).clicked() {
+                    done = Done::Cancel;
+                }
+                ui.label(RichText::new(crate::tl!("Enter to apply, Esc to keep the old text")).small().color(t.text_dim));
+            });
+        });
+    });
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        done = Done::Cancel;
+    }
+    match done {
+        Done::No => {
+            ctx.data_mut(|d| d.insert_temp(id, (edit.handle, text)));
+        }
+        Done::Ok => {
+            ctx.data_mut(|d| d.remove::<(cadcraft_engine::doc::Handle, String)>(id));
+            let r = if text == edit.text {
+                app.session.input(cadcraft_engine::Input::Enter)
+            } else {
+                app.session.input(cadcraft_engine::Input::Text(text))
+            };
+            if let Err(e) = r {
+                app.session.echo(e.to_string());
+            }
+        }
+        Done::Cancel => {
+            ctx.data_mut(|d| d.remove::<(cadcraft_engine::doc::Handle, String)>(id));
             app.session.cancel();
         }
     }

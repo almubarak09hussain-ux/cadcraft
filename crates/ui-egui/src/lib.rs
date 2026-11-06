@@ -21,6 +21,10 @@ pub mod control;
 pub mod credits;
 pub mod dialogs;
 pub mod docking;
+/// Enhanced Attribute Editor and Batch Publish.
+pub mod editdlg;
+/// Format menu dialogs: color, lineweight, plot style, scale list, dimension and multiline styles.
+pub mod formatdlg;
 pub mod hatchdlg;
 mod mtext_editor;
 pub mod spacemouse;

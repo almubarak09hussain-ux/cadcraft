@@ -2197,6 +2197,8 @@ fn run_textedit(s: &mut Session, p: &Value) -> Result<Value> {
 #[derive(Default)]
 struct TextEditM {
     h: Option<(Handle, String)>,
+    /// The picked object as it was when picked: what the in-place editors show.
+    picked: Option<EntityKind>,
     /// Edits made in this run, newest last: each object as it was before (the Undo option).
     edits: Vec<(Handle, EntityKind)>,
     /// Single mode: end after one edit (the Mode option; Multiple by default).
@@ -2208,6 +2210,25 @@ struct TextEditM {
 impl Interactive for TextEditM {
     fn name(&self) -> &'static str {
         "TEXTEDIT"
+    }
+    /// A picked MTEXT opens in the in-place MTEXT editor with its contents.
+    fn editing_mtext(&self) -> Option<cadcraft_doc::MText> {
+        self.h.as_ref()?;
+        match &self.picked {
+            Some(EntityKind::MText(m)) => Some(m.clone()),
+            _ => None,
+        }
+    }
+    /// Any other picked text opens in a one-line box with the whole text.
+    fn editing_text(&self) -> Option<crate::TextEditing> {
+        let (handle, text) = self.h.clone()?;
+        let (at, height) = match self.picked.as_ref()? {
+            EntityKind::Text(t) => (t.insert.xy(), t.height),
+            EntityKind::AttDef(a) => (a.text.insert.xy(), a.text.height),
+            EntityKind::Dimension(d) => (d.text_mid.xy(), 0.0),
+            _ => return None,
+        };
+        Some(crate::TextEditing { handle, text, at, height })
     }
     fn prompt(&self, _s: &Session) -> Prompt {
         if self.mode {
@@ -2233,8 +2254,10 @@ impl Interactive for TextEditM {
         match (&self.h, i) {
             (None, Input::Point(p)) => {
                 let h = curves::pick_at(s, p).ok_or_else(|| other("*Invalid selection*"))?;
-                let old = text_of(&curves::entity(s, h)?.kind).ok_or_else(|| other("Select a text, mtext, attribute definition or dimension."))?;
+                let kind = curves::entity(s, h)?.kind;
+                let old = text_of(&kind).ok_or_else(|| other("Select a text, mtext, attribute definition or dimension."))?;
                 self.h = Some((h, old));
+                self.picked = Some(kind);
                 Ok(Step::Continue)
             }
             (Some((h, _)), Input::Text(t) | Input::Keyword(t)) => {

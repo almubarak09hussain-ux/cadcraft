@@ -95,6 +95,12 @@ fn run_ui_command_inner(app: &mut CadApp, id: &str, params: &Value) -> Option<Re
     if let Some(r) = crate::managers::route(app, id, params) {
         return Some(r);
     }
+    if let Some(r) = crate::editdlg::route(app, id, params) {
+        return Some(r);
+    }
+    if let Some(r) = crate::formatdlg::route(app, id, params) {
+        return Some(r);
+    }
     if matches!(id, "ui.dock" | "ui.dock.reset") {
         return Some(crate::docking::command(app, id == "ui.dock.reset", params));
     }

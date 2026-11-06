@@ -10,6 +10,7 @@ use crate::theme::Tokens;
 
 pub fn show(app: &mut CadApp, ctx: &egui::Context) {
     crate::mtext_editor::show(app, ctx);
+    crate::mtext_editor::show_line(app, ctx);
     crate::quick::quick_properties(app, ctx);
     let Some(d) = app.ui.dialog.clone() else { return };
     let mut open = true;
@@ -30,7 +31,11 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context) {
         "authoring" => crate::bedit::authoring_dialog(app, ctx, &mut open),
         "stylesmanager" => crate::plotstyles::dialog(app, ctx, &mut open),
         o if o == "options" || o.starts_with("options:") => crate::options::dialog(app, ctx, o, &mut open),
-        other => crate::managers::dialog(app, ctx, other, &mut open),
+        other => {
+            if !crate::editdlg::dialog(app, ctx, other, &mut open) && !crate::formatdlg::dialog(app, ctx, other, &mut open) {
+                crate::managers::dialog(app, ctx, other, &mut open);
+            }
+        }
     }
     // A dialog that closed by opening another (Plot Preview back to Plot) keeps the new one.
     if !open && app.ui.dialog.as_deref() == Some(d.as_str()) {

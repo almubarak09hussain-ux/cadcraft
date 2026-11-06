@@ -1330,3 +1330,78 @@
 	Justify	За шириною
 	Text color	Колір тексту
 	Click the ruler to add a tab stop, right-click to remove one	Натисніть на лінійку, щоб додати табуляцію; права кнопка видаляє її
+	(none)	(немає)
+	A separate PDF for each sheet	Окремий PDF для кожного аркуша
+	Active plot style table:	Активна таблиця стилів друку:
+	Add a scale	Додати масштаб
+	Block:	Блок:
+	Caps	Закінчення
+	Click a tool, then pick the multilines in the drawing.	Клацніть інструмент, потім виберіть мультилінії на кресленні.
+	Color:	Колір:
+	Create New Dimension Style	Створити новий розмірний стиль
+	Create New Multiline Style	Створити новий стиль мультилінії
+	Current Plot Style	Поточний стиль друку
+	Current dimstyle: {style}	Поточний розмірний стиль: {style}
+	Current lineweight: {lineweight}	Поточна вага лінії: {lineweight}
+	Current multiline style: {style}	Поточний стиль мультилінії: {style}
+	Current plot style: {style}	Поточний стиль друку: {style}
+	Default: {lineweight}	За замовчуванням: {lineweight}
+	Description:	Опис:
+	Dimension Style Manager	Диспетчер розмірних стилів
+	Display Lineweight	Показувати вагу ліній
+	Display joints	Показувати з'єднання
+	Drawing units	Одиниці креслення
+	Each sheet plots with its page setup.	Кожен аркуш друкується зі своїми параметрами сторінки.
+	Edit Drawing Scales	Редагування масштабів креслення
+	Elements	Елементи
+	End	Кінець
+	Enhanced Attribute Editor	Розширений редактор атрибутів
+	Enter to apply, Esc to keep the old text	Enter — застосувати, Esc — залишити старий текст
+	Fill color	Колір заливки
+	Layouts only	Лише аркуші
+	Lineweight Settings	Параметри ваги ліній
+	Lineweights	Ваги ліній
+	Modify Dimension Style: {style}	Змінити розмірний стиль: {style}
+	Modify Multiline Style: {style}	Змінити стиль мультилінії: {style}
+	Modify...	Змінити...
+	Multi-sheet file (one PDF, a page per sheet)	Багатоаркушевий файл (один PDF, сторінка на аркуш)
+	Multiline Edit Tools	Інструменти редагування мультиліній
+	Multiline Style	Стиль мультилінії
+	New Multiline Style: {style}	Новий стиль мультилінії: {style}
+	New Style Name:	Назва нового стилю:
+	New...	Новий...
+	PDF output	Виведення в PDF
+	Paper units	Одиниці аркуша
+	Plot Style Table Editor...	Редактор таблиці стилів друку...
+	Plot styles	Стилі друку
+	Prompt	Підказка
+	Publish	Опублікувати
+	Rename Multiline Style	Перейменувати стиль мультилінії
+	Reset (imperial)	Скинути (дюймові)
+	Reset (metric)	Скинути (метричні)
+	Scale List	Список масштабів
+	Scales in use by viewports can't be deleted.	Масштаби, які використовують видові екрани, не можна видалити.
+	Select Color	Вибір кольору
+	Sheets to publish	Аркуші для публікації
+	Start With:	Почати з:
+	Styles	Стилі
+	Tag	Позначка
+	This block has no attributes to edit.	Цей блок не має атрибутів для редагування.
+	This drawing has no sheets to publish.	Це креслення не має аркушів для публікації.
+	Closed Cross	Закритий хрест
+	Open Cross	Відкритий хрест
+	Merged Cross	Об'єднаний хрест
+	Closed Tee	Закрите T-з'єднання
+	Open Tee	Відкрите T-з'єднання
+	Merged Tee	Об'єднане T-з'єднання
+	Corner Joint	Кутове з'єднання
+	Delete Vertex	Видалити вершину
+	Cut Single	Розрізати одну
+	Cut All	Розрізати всі
+	Weld All	З'єднати всі
+	Symbols and Arrows	Символи та стрілки
+	Fit	Розміщення
+	Primary Units	Основні одиниці
+	Alternate Units	Альтернативні одиниці
+	Tolerances	Допуски
+	Lines	Лінії

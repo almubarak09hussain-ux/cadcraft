@@ -220,6 +220,23 @@ pub trait Interactive: Send {
     fn editing_mtext(&self) -> Option<cadcraft_doc::MText> {
         None
     }
+    /// A single line of text being edited in place (TEXTEDIT on a text, attribute definition or
+    /// dimension): the UI shows a text box at it, filled with the whole text.
+    fn editing_text(&self) -> Option<TextEditing> {
+        None
+    }
+}
+
+/// See [`Interactive::editing_text`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextEditing {
+    pub handle: Handle,
+    /// The whole text (the prompt's default shows only its start).
+    pub text: String,
+    /// Where the text is (its insertion point), for placing the box.
+    pub at: Vec2,
+    /// Its height in drawing units (0 when not known).
+    pub height: f64,
 }
 
 /// See [`Interactive::drag`].

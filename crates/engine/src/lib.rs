@@ -42,7 +42,7 @@ pub use cadcraft_geom as geom;
 pub use cadcraft_render as render;
 pub use cmd::hatch::{HatchPicks, PatternChoice, PickMode, pattern_choices};
 pub use cmd::{CommandInfo, CommandSpec, command_specs, find_command};
-pub use prompt::{Accept, Drag, Input, Interactive, Picker, Prompt, Step};
+pub use prompt::{Accept, Drag, Input, Interactive, Picker, Prompt, Step, TextEditing};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -1344,6 +1344,11 @@ impl Session {
     /// ([`Interactive::editing_mtext`]).
     pub fn editing_mtext(&self) -> Option<cadcraft_doc::MText> {
         self.running.as_ref().and_then(|r| r.machine.editing_mtext())
+    }
+
+    /// The single-line text the running command edits in place ([`Interactive::editing_text`]).
+    pub fn editing_text(&self) -> Option<prompt::TextEditing> {
+        self.running.as_ref().and_then(|r| r.machine.editing_text())
     }
 
     pub fn current_prompt(&self) -> Option<Prompt> {

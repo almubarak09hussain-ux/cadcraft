@@ -84,6 +84,15 @@ impl Interactive for Guarded {
             None
         })
     }
+    fn editing_text(&self) -> Option<crate::prompt::TextEditing> {
+        if self.broken.get().is_some() {
+            return None;
+        }
+        catch_unwind(AssertUnwindSafe(|| self.inner.editing_text())).unwrap_or_else(|_| {
+            self.broken.set(Some("panic in prompt"));
+            None
+        })
+    }
     fn editing_mtext(&self) -> Option<cadcraft_doc::MText> {
         if self.broken.get().is_some() {
             return None;

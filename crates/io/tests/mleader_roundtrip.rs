@@ -43,6 +43,7 @@ fn text_mleader() -> MLeader {
 
 fn insert(block: &str, at: Vec3) -> Insert {
     Insert {
+        clip: None,
         block: block.into(),
         insert: at,
         scale: Vec3::new(2.0, 2.0, 1.0),

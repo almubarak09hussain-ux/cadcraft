@@ -19,6 +19,8 @@ mod attedit;
 mod dyngrip;
 mod extract;
 pub(crate) mod refedit;
+/// XCLIP: block reference clip boundaries.
+mod xclip;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -43,6 +45,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params("{tag, prompt?, default?, at, height?, invisible?}")
             .interactive(|_| Ok(Box::new(AttdefM::default()))),
         attedit::attedit_spec(),
+        xclip::spec(),
         attedit::dash_attedit_spec(),
         CommandSpec::new("wblock", "Write Block", run_wblock).alias(&["w"]).params("{path, name? | handles?, base?}"),
         CommandSpec::new("base", "Base", run_base).menu(&["Draw", "Block", "Base"]).params("{at: [x,y]}"),
@@ -158,6 +161,7 @@ pub(crate) fn insert(s: &mut Session, name: &str, at: Vec2, scale: f64, rotation
 /// coordinates) that lands on `at` instead of the block's own base point.
 fn insert_entity(blk: &Block, at: Vec2, scale: Vec2, rotation: f64, base: Option<Vec2>) -> Insert {
     let mut ins = Insert {
+        clip: None,
         block: blk.name.clone(),
         insert: v3(at),
         scale: Vec3::new(scale.x, scale.y, scale.x),

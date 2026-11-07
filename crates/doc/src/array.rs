@@ -219,6 +219,7 @@ impl ArrayParams {
         let mut out = Vec::with_capacity(items.len());
         for it in items {
             let ins = Insert {
+                clip: None,
                 block: self.block_for(it.i, it.j, it.level).to_string(),
                 insert: it.insert,
                 scale: Vec3::new(1.0, 1.0, 1.0),

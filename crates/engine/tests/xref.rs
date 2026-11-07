@@ -41,6 +41,7 @@ fn line(d: &mut Drawing, layer: &str, a: (f64, f64), b: (f64, f64)) {
 
 fn insert(block: &str, x: f64) -> EntityKind {
     EntityKind::Insert(Insert {
+        clip: None,
         block: block.into(),
         insert: Vec3::new(x, 0.0, 0.0),
         scale: Vec3::new(1.0, 1.0, 1.0),

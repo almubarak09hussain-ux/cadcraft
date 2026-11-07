@@ -343,6 +343,7 @@ mod tests {
                 }),
                 6 => EntityKind::Point(cadcraft_doc::Point { p: v3(x, y), angle: 0.0 }),
                 7 => EntityKind::Insert(Insert {
+                    clip: None,
                     block: "B".into(),
                     insert: v3(x, y),
                     scale: Vec3::new(s * 0.3, s * 0.3, 1.0),
@@ -491,6 +492,7 @@ mod tests {
             d.add(&Space::Model, Common::default(), EntityKind::Line(cadcraft_doc::Line { a: v3(x, 0.0), b: v3(x, 1.0) })).unwrap();
         }
         let insert = Insert {
+            clip: None,
             block: "B".into(),
             insert: v3(0.0, 0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),

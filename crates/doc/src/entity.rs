@@ -494,6 +494,32 @@ pub struct Insert {
     pub col_spacing: f64,
     #[serde(default)]
     pub row_spacing: f64,
+    /// The reference's clip boundary (XCLIP), if it has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clip: Option<BlockClip>,
+}
+
+/// A block reference's clip boundary (XCLIP): only what lies inside it is shown (or, inverted,
+/// only what lies outside).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockClip {
+    /// The boundary, closed, in the block's own coordinates (those of its definition), so it
+    /// moves, turns and scales with the reference.
+    pub boundary: Vec<Vec2>,
+    /// Clipping is on (XCLIP ON / OFF keeps the boundary either way).
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    /// Show what lies outside the boundary instead of inside (invert clip).
+    #[serde(default)]
+    pub inverted: bool,
+}
+
+impl Insert {
+    /// The clip boundary in effect (on, with at least three points).
+    pub fn active_clip(&self) -> Option<&BlockClip> {
+        self.clip.as_ref().filter(|c| c.enabled && c.boundary.len() >= 3)
+    }
 }
 fn unit_scale() -> Vec3 {
     Vec3::new(1.0, 1.0, 1.0)

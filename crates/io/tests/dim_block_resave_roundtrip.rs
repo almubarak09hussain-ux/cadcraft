@@ -32,6 +32,7 @@ fn linear(a: [f64; 2], b: [f64; 2], at: [f64; 2]) -> Dimension {
 
 fn insert(block: &str) -> Insert {
     Insert {
+        clip: None,
         block: block.into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

@@ -623,6 +623,7 @@ fn hatch_in_a_squashed_block_keeps_lines_that_show() {
     blk.entities.push(e);
     d.blocks.insert("B".into(), std::sync::Arc::new(blk));
     let ins = cadcraft_doc::Insert {
+        clip: None,
         block: "B".into(),
         insert: Vec3::new(0.0, 0.0, 0.0),
         scale: Vec3::new(100.0, 1.0, 1.0),
@@ -667,6 +668,7 @@ fn block_entity(handle: u64, common: Common, kind: EntityKind) -> cadcraft_doc::
 
 fn insert_of(block: &str) -> EntityKind {
     EntityKind::Insert(cadcraft_doc::Insert {
+        clip: None,
         block: block.into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

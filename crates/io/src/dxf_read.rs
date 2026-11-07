@@ -411,6 +411,7 @@ fn entity(kind: &str, tags: &[Tag]) -> Option<(Common, EntityKind)> {
                 col_spacing = -col_spacing;
             }
             EntityKind::Insert(Insert {
+                clip: None,
                 block: t.s(2).unwrap_or_default(),
                 insert: p,
                 scale,
@@ -1825,6 +1826,7 @@ pub fn read(bytes: &[u8]) -> Result<Drawing> {
     objs.apply(&mut d, &rx);
     crate::dxf_image::resolve(&secs, &mut d);
     crate::dxf_mline::resolve(&secs, &mut d);
+    crate::dxf_xclip::resolve(&secs, &mut d);
     // Keep handles unique against the header's seed.
     let seed = d.header.str("HANDSEED", "");
     if let Some(h) = own_seed.or_else(|| Handle::parse_hex(&seed)) {

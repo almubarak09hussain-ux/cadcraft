@@ -208,6 +208,7 @@ fn viewport_frozen_layers_apply_inside_nested_block_references() {
     d.blocks.insert(inner.name.clone(), std::sync::Arc::new(inner));
     let insert = |block: &str| {
         EntityKind::Insert(Insert {
+            clip: None,
             block: block.into(),
             insert: Vec3::ZERO,
             scale: Vec3::new(1.0, 1.0, 1.0),

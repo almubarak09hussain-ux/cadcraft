@@ -57,6 +57,7 @@ fn drawing(attribs: Vec<Attrib>) -> (Drawing, Handle) {
     }
     d.blocks.insert(blk.name.clone(), Arc::new(blk));
     let ins = Insert {
+        clip: None,
         block: "TAGS".into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

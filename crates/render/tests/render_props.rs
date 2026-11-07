@@ -160,6 +160,7 @@ fn attributes_draw_with_their_own_properties() {
         })
         .to_vec();
     let ins = Insert {
+        clip: None,
         block: "TAGS".into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

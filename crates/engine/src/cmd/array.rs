@@ -144,6 +144,7 @@ pub(crate) fn make_assoc(s: &mut Session, objs: &[Handle], base: Vec2, mut p: Ar
         d.remove_entity(*h);
     }
     s.add_entity(EntityKind::Insert(Insert {
+        clip: None,
         block: name,
         insert: v3(base),
         scale: Vec3::new(1.0, 1.0, 1.0),

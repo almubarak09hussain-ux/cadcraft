@@ -26,6 +26,7 @@ fn read(bytes: &[u8], _name: &str) -> Result<Drawing, String> {
     line.common.layer = "PARTS".into();
     d.model.push(line);
     let ins = Insert {
+        clip: None,
         block: "NUT".into(),
         insert: Vec3::new(10.0, 10.0, 0.0),
         scale: Vec3::new(1.0, 1.0, 1.0),

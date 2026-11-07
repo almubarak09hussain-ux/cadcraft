@@ -128,6 +128,7 @@ fn sample() -> Drawing {
         &Space::Model,
         c("0"),
         EntityKind::Insert(Insert {
+            clip: None,
             block: "Bolt".into(),
             insert: Vec3::new(2.0, 2.0, 0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),
@@ -1333,6 +1334,7 @@ fn intl_sample() -> Drawing {
         &Space::Model,
         on,
         EntityKind::Insert(Insert {
+            clip: None,
             block,
             insert: Vec3::new(2.0, 2.0, 0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),
@@ -2329,6 +2331,7 @@ fn pdf_strokes_each_transparent_primitive_inside_a_block() {
         }
         d.blocks.insert("X".into(), std::sync::Arc::new(blk));
         let ins = Insert {
+            clip: None,
             block: "X".into(),
             insert: Vec3::ZERO,
             scale: Vec3::new(1.0, 1.0, 1.0),

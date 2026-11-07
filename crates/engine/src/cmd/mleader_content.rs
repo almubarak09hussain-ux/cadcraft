@@ -45,6 +45,7 @@ pub(super) fn apply(s: &Session, k: EntityKind, c: &Content) -> Result<EntityKin
     if let Some((name, center)) = &c.block {
         let anchor = land + Vec2::new(m.dogleg * dir, 0.0);
         let mut ins = Insert {
+            clip: None,
             block: name.clone(),
             insert: Vec3::new(anchor.x, anchor.y, m.landing.z),
             scale: Vec3::new(1.0, 1.0, 1.0),

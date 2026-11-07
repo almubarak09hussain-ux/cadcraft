@@ -84,6 +84,7 @@ fn layered() -> Drawing {
     blk.entities.push(Entity::new(Handle(0x900), leaf));
     d.blocks.insert(blk.name.clone(), std::sync::Arc::new(blk));
     let ins = Insert {
+        clip: None,
         block: "DOOR".into(),
         insert: Vec3::new(50.0, 40.0, 0.0),
         scale: Vec3::new(1.0, 1.0, 1.0),

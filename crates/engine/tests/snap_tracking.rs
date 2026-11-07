@@ -32,6 +32,7 @@ fn insert_block(s: &mut Session, name: &str, at: Vec2) -> String {
             &Space::Model,
             Common::default(),
             EntityKind::Insert(Insert {
+                clip: None,
                 block: name.into(),
                 insert: Vec3::new(at.x, at.y, 0.0),
                 scale: Vec3::new(1.0, 1.0, 1.0),

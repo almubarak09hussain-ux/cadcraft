@@ -340,6 +340,7 @@ pub(crate) fn read(tags: &[Tag]) -> MLeader {
         let scale = p.block_scale_ctx.get().or(p.block_scale.get()).unwrap_or(Vec3::new(1.0, 1.0, 1.0));
         let nz = |v: f64| if v != 0.0 { v } else { 1.0 };
         Insert {
+            clip: None,
             block: String::new(),
             insert: block_location.unwrap_or(landing),
             scale: Vec3::new(nz(scale.x), nz(scale.y), nz(scale.z)),

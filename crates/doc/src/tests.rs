@@ -55,6 +55,7 @@ fn inserts_of_missing_or_empty_blocks_do_not_stretch_extents() {
     d.add(&Space::Model, Common::default(), line((0.0, 0.0), (1.0, 1.0))).unwrap();
     let ins = |block: &str, x: f64, y: f64| {
         EntityKind::Insert(Insert {
+            clip: None,
             block: block.into(),
             insert: Vec3::new(x, y, 0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),
@@ -108,6 +109,7 @@ fn visible_attributes_of_a_missing_block_still_count() {
         Entity::new(
             Handle(1),
             EntityKind::Insert(Insert {
+                clip: None,
                 block: block.into(),
                 insert: Vec3::ZERO,
                 scale: Vec3::new(1.0, 1.0, 1.0),
@@ -151,6 +153,7 @@ fn insert_bounds_with_cyclic_block_terminate() {
     b.entities.push(Entity::new(
         Handle(1),
         EntityKind::Insert(Insert {
+            clip: None,
             block: "A".into(),
             insert: Vec3::ZERO,
             scale: Vec3::new(1.0, 1.0, 1.0),
@@ -169,6 +172,7 @@ fn insert_bounds_with_cyclic_block_terminate() {
             &Space::Model,
             Common::default(),
             EntityKind::Insert(Insert {
+                clip: None,
                 block: "A".into(),
                 insert: Vec3::new(5.0, 5.0, 0.0),
                 scale: Vec3::new(2.0, 2.0, 1.0),
@@ -286,6 +290,7 @@ fn wide_arc_segment_extents_reach_the_outer_edge() {
 
 fn plain_insert(block: &str) -> EntityKind {
     EntityKind::Insert(Insert {
+        clip: None,
         block: block.into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

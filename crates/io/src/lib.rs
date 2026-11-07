@@ -11,6 +11,8 @@ mod dxf_mleader;
 mod dxf_read;
 mod dxf_table;
 mod dxf_write;
+/// Block reference clips (XCLIP): SPATIAL_FILTER objects.
+mod dxf_xclip;
 mod dxf_xref;
 pub mod pdf;
 pub mod plotter;

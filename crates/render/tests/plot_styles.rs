@@ -134,6 +134,7 @@ fn named_styles_by_layer_by_block_and_name() {
     });
     d.blocks.insert("B".into(), Arc::new(blk));
     let ins = EntityKind::Insert(Insert {
+        clip: None,
         block: "B".into(),
         insert: Vec3::new(0.0, 4.0, 0.0),
         scale: Vec3::new(1.0, 1.0, 1.0),

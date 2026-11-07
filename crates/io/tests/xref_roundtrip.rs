@@ -43,6 +43,7 @@ fn host() -> Drawing {
     d.layers.push(Layer { name: "Doors".into(), ..Layer::default() });
     for (i, name) in ["SITE", "PLAN"].into_iter().enumerate() {
         let ins = Insert {
+            clip: None,
             block: name.into(),
             insert: Vec3::new(i as f64 * 10.0, 0.0, 0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),

@@ -135,6 +135,7 @@ fn xref_block_flag_and_path_roundtrip() {
     local.entities.push(Entity::new(Handle(0x50), EntityKind::Line(Line { a: Vec3::ZERO, b: Vec3::new(1.0, 0.0, 0.0) })));
     d.blocks.insert(local.name.clone(), std::sync::Arc::new(local));
     let ins = Insert {
+        clip: None,
         block: "Site".into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

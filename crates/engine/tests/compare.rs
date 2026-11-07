@@ -142,6 +142,7 @@ fn hostile_inputs_are_errors() {
     // Self-referencing blocks in both drawings: signatures stay bounded.
     let mut b = Block::new("LOOP");
     let ins = Insert {
+        clip: None,
         block: "LOOP".into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

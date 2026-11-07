@@ -45,6 +45,7 @@ fn drawing() -> Drawing {
     d.blocks.insert("TAG".into(), Arc::new(b));
     let attrib = attrib("WORKSHOP");
     let ins = Insert {
+        clip: None,
         block: "TAG".into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

@@ -633,6 +633,7 @@ impl Sink<'_> {
             Some(blk) => {
                 // The block holds world geometry: a reference at its own base point places it as is.
                 let ins = Insert {
+                    clip: None,
                     block: blk.name.clone(),
                     insert: blk.base,
                     scale: cadcraft_geom::Vec3::new(1.0, 1.0, 1.0),

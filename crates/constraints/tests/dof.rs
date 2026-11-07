@@ -293,6 +293,7 @@ fn block_reference_moves_rigidly() {
     let ins = put(
         &mut d,
         EntityKind::Insert(Insert {
+            clip: None,
             block: "BAR".into(),
             insert: v(1.0, 1.0),
             scale: v(1.0, 1.0),
@@ -334,6 +335,7 @@ fn hostile_new_geometry_never_panics() {
     let missing = put(
         &mut d,
         EntityKind::Insert(Insert {
+            clip: None,
             block: "NOPE".into(),
             insert: v(0.0, 0.0),
             scale: v(0.0, f64::INFINITY),

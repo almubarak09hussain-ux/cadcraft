@@ -47,6 +47,7 @@ fn drawing() -> Drawing {
     arr.array = Some(p);
     d.blocks.insert("*U2".into(), Arc::new(arr));
     let ins = Insert {
+        clip: None,
         block: "*U2".into(),
         insert: Vec3::new(20.0, 5.0, 0.0),
         scale: Vec3::new(1.0, 1.0, 1.0),

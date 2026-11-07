@@ -15,6 +15,7 @@ fn line(a: (f64, f64), b: (f64, f64)) -> EntityKind {
 
 fn insert(block: &str) -> EntityKind {
     EntityKind::Insert(Insert {
+        clip: None,
         block: block.into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

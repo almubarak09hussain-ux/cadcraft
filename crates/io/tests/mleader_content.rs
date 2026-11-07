@@ -20,6 +20,7 @@ fn spline_leader_and_block_content_are_written() {
         arrow_size: 1.0,
         spline: true,
         block: Some(Insert {
+            clip: None,
             block: "TAG".into(),
             insert: Vec3::new(11.0, 0.0, 0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),

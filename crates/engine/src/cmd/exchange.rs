@@ -617,6 +617,7 @@ mod tests {
 
     fn insert(name: &str) -> EntityKind {
         EntityKind::Insert(Insert {
+            clip: None,
             block: name.into(),
             insert: Vec3::ZERO,
             scale: Vec3::new(1.0, 1.0, 1.0),

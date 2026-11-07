@@ -36,6 +36,7 @@ fn drawing() -> Drawing {
     b.entities.push(cadcraft_doc::Entity::new(cadcraft_doc::Handle(0x9000), text("T")));
     d.blocks.insert("TAG".into(), Arc::new(b));
     let ins = Insert {
+        clip: None,
         block: "TAG".into(),
         insert: Vec3::new(10.0, 0.0, 0.0),
         scale: Vec3::new(1.0, 1.0, 1.0),

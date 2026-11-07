@@ -22,6 +22,8 @@ struct W {
     /// Persistent reactors of boundary objects: each source object of an associative hatch →
     /// the hatches (groups `{ACAD_REACTORS 330 …}`), from [`hatch_reactors`].
     reactors: HashMap<Handle, Vec<String>>,
+    /// Extension dictionaries the writer gives entities (a clipped block reference's).
+    xdicts: HashMap<Handle, String>,
 }
 
 impl W {
@@ -90,6 +92,18 @@ struct AssocObj {
     refs: Vec<OsnapRef>,
 }
 
+/// A clipped block reference's objects: its extension dictionary, the `ACAD_FILTER` dictionary
+/// and the SPATIAL_FILTER, with the filter's points (world) and first matrix.
+struct XClipObj {
+    insert: Handle,
+    xdict: String,
+    filters: String,
+    spatial: String,
+    enabled: bool,
+    points: Vec<cadcraft_geom::Vec2>,
+    inverse: [f64; 12],
+}
+
 /// An `AcDbOsnapPointRef` of a DIMASSOC object.
 struct OsnapRef {
     osnap: i64,
@@ -117,6 +131,8 @@ struct Ctx {
     ltypes: HashMap<String, String>,
     /// Associative dimension → its DIMASSOC object.
     assoc: HashMap<Handle, AssocObj>,
+    /// Clipped block references' SPATIAL_FILTER objects.
+    xclips: Vec<XClipObj>,
     /// Table → (anonymous `*T` block name, BLOCK_RECORD handle).
     tables: HashMap<Handle, (String, String)>,
     /// Table style name → TABLESTYLE handle (the first is the fallback).
@@ -201,7 +217,7 @@ fn annotative_xdata(w: &mut W) {
 
 /// Override (`ACAD` DSTYLE) and associativity (`CADCRAFT` ASSOC) xdata of a dimension.
 fn dim_xdata(w: &mut W, dm: &Dimension, cx: &Ctx) {
-    let mut ov = W { t: Vec::new(), next: 0, pstyles: HashMap::new(), layers: HashMap::new(), reactors: HashMap::new() };
+    let mut ov = W { t: Vec::new(), next: 0, pstyles: HashMap::new(), layers: HashMap::new(), reactors: HashMap::new(), xdicts: HashMap::new() };
     let mut sah = false;
     for (k, v) in &dm.overrides {
         let Some(field) = DimStyle::field_name(k) else { continue };
@@ -356,6 +372,8 @@ fn common_x(w: &mut W, e: &Entity, owner: &str, paper: bool, subclass: &str, ass
     }
     if let Some(a) = assoc {
         w.group("ACAD_XDICTIONARY", 360, &[&a.xdict]);
+    } else if let Some(x) = w.xdicts.get(&e.handle).cloned() {
+        w.group("ACAD_XDICTIONARY", 360, &[&x]);
     }
     w.s(330, owner);
     w.s(100, "AcDbEntity");
@@ -1588,6 +1606,7 @@ fn tags_for(d: &Drawing, version: Version, target: Version) -> Vec<Tag> {
         pstyles: HashMap::new(),
         layers: HashMap::new(),
         reactors: hatch_reactors(d),
+        xdicts: HashMap::new(),
     };
     // Pre-allocate handles for block records.
     let mut paper_layouts: Vec<&Layout> = d.layouts.iter().collect();
@@ -1721,6 +1740,22 @@ fn tags_for(d: &Drawing, version: Version, target: Version) -> Vec<Tag> {
     // Image definitions (IMAGEDEF objects) of raster images anywhere in the drawing.
     cx.images = crate::dxf_image::plan(every.iter().copied(), || w.h());
     cx.mlines = crate::dxf_mline::plan(d, every.iter().copied(), || w.h());
+    // Clipped block references (anywhere): their extension dictionaries and filters.
+    for e in &every {
+        if let EntityKind::Insert(i) = &e.kind
+            && let Some(clip) = i.clip.as_ref().filter(|c| c.boundary.len() >= 3)
+            && let Some(blk) = d.block(&i.block)
+        {
+            let m = i.transform(blk.base.xy());
+            // The block's extent in its own coordinates (an inverted clip's frame goes round it).
+            let ext = blk.entities.iter().map(|be| cadcraft_doc::entity_bounds(d, be, 1)).fold(cadcraft_geom::Bounds2::EMPTY, |a, b| a.union(&b));
+            let extent = (!ext.is_empty()).then_some((ext.min, ext.max));
+            let (points, inverse) = crate::dxf_xclip::filter_data(clip, &m, extent);
+            let x = XClipObj { insert: e.handle, xdict: w.h(), filters: w.h(), spatial: w.h(), enabled: clip.enabled, points, inverse };
+            w.xdicts.insert(e.handle, x.xdict.clone());
+            cx.xclips.push(x);
+        }
+    }
     // DIMASSOC objects of associative dimensions in model and paper space.
     for st in &all_spaces {
         for e in st.iter() {
@@ -2055,7 +2090,8 @@ fn tags_for(d: &Drawing, version: Version, target: Version) -> Vec<Tag> {
         w.i(70, 0);
         let v = serde_json::to_value(s).unwrap_or_default();
         let defaults = serde_json::to_value(DimStyle::default()).unwrap_or_default();
-        let mut newer = W { t: Vec::new(), next: 0, pstyles: HashMap::new(), layers: HashMap::new(), reactors: HashMap::new() };
+        let mut newer =
+            W { t: Vec::new(), next: 0, pstyles: HashMap::new(), layers: HashMap::new(), reactors: HashMap::new(), xdicts: HashMap::new() };
         for (field, code, kind) in dxf_ext::DIM_CODES {
             let Some(enc) = v.get(*field).and_then(|x| cx.encode(*kind, x)) else { continue };
             if !dxf_ext::NEWER_CODES.contains(code) {
@@ -2308,6 +2344,46 @@ fn tags_for(d: &Drawing, version: Version, target: Version) -> Vec<Tag> {
         }
     }
     scale_list(&mut w, &scales, &scale_dict, &root_dict);
+    // Block reference clips: extension dictionary → ACAD_FILTER → SPATIAL (SPATIAL_FILTER).
+    for x in &cx.xclips {
+        let ih = x.insert.hex();
+        w.s(0, "DICTIONARY");
+        w.s(5, x.xdict.clone());
+        w.s(330, ih);
+        w.s(100, "AcDbDictionary");
+        w.i(280, 1);
+        w.s(3, "ACAD_FILTER");
+        w.s(360, x.filters.clone());
+        w.s(0, "DICTIONARY");
+        w.s(5, x.filters.clone());
+        w.s(330, x.xdict.clone());
+        w.s(100, "AcDbDictionary");
+        w.i(280, 1);
+        w.s(3, "SPATIAL");
+        w.s(360, x.spatial.clone());
+        w.s(0, "SPATIAL_FILTER");
+        w.s(5, x.spatial.clone());
+        w.s(330, x.filters.clone());
+        w.s(100, "AcDbFilter");
+        w.s(100, "AcDbSpatialFilter");
+        w.i(70, i64::try_from(x.points.len()).unwrap_or(0));
+        for p in &x.points {
+            w.f(10, p.x);
+            w.f(20, p.y);
+        }
+        w.p(210, Vec3::new(0.0, 0.0, 1.0));
+        w.p(11, Vec3::ZERO);
+        w.i(71, i64::from(x.enabled));
+        w.i(72, 0);
+        w.i(73, 0);
+        for v in x.inverse {
+            w.f(40, v);
+        }
+        // The boundary's own transform: none.
+        for v in [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0] {
+            w.f(40, v);
+        }
+    }
     // Dimension associativity: extension dictionary + DIMASSOC per dimension.
     let mut assoc: Vec<(&Handle, &AssocObj)> = cx.assoc.iter().collect();
     assoc.sort_by_key(|(h, _)| **h);
@@ -2671,6 +2747,7 @@ pub fn entity_groups(d: &Drawing, e: &Entity) -> (String, Vec<Tag>) {
         pstyles: HashMap::new(),
         layers: HashMap::new(),
         reactors: HashMap::new(),
+        xdicts: HashMap::new(),
     };
     let cx = Ctx { target: Version::R2018, ..Ctx::default() };
     let paper = d.space_of(e.handle).is_some_and(|s| !matches!(s, cadcraft_doc::Space::Model));

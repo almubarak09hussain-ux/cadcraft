@@ -941,6 +941,116 @@ fn image(b: &mut Builder, ctx: &Ctx, i: &cadcraft_doc::Image) {
     });
 }
 
+/// Where a display list ended at some point: what has been added since can be taken back out.
+struct Mark {
+    prims: usize,
+    verts: usize,
+    tris: usize,
+    images: usize,
+}
+
+impl Mark {
+    fn of(list: &DisplayList) -> Mark {
+        Mark { prims: list.prims.len(), verts: list.verts.len(), tris: list.tris.len(), images: list.images.len() }
+    }
+}
+
+/// Clip what `list` gained since `mark` to `boundary` (closed, in the list's coordinates): keep
+/// what lies inside it, or outside it when `inverted` (a block reference's XCLIP). Per-primitive
+/// layers and pens follow their primitive's pieces; a plotted glyph cut by the boundary is drawn
+/// as its outline.
+fn clip_since(list: &mut DisplayList, mark: &Mark, boundary: &[Vec2], inverted: bool) {
+    if mark.prims > list.prims.len() || mark.verts > list.verts.len() || mark.tris > list.tris.len() || mark.images > list.images.len() {
+        return;
+    }
+    let prims = list.prims.split_off(mark.prims);
+    let verts = list.verts.split_off(mark.verts);
+    let tris = list.tris.split_off(mark.tris);
+    let images = list.images.split_off(mark.images);
+    let layers = if list.prim_layers.len() > mark.prims { list.prim_layers.split_off(mark.prims) } else { Vec::new() };
+    let pens = if list.pens.len() > mark.prims { list.pens.split_off(mark.prims) } else { Vec::new() };
+    // The region kept: the boundary, or (inverted) everything drawn around it but the boundary,
+    // as one even-odd outline (a frame and the boundary joined by a bridge).
+    let region: Vec<Vec2> = if inverted {
+        let mut bb = Bounds2::from_points(verts.iter().chain(&tris).chain(images.iter().flat_map(|i| &i.tris)).chain(boundary).copied());
+        if bb.is_empty() {
+            return;
+        }
+        bb = bb.expand(bb.width().max(bb.height()) * 0.01 + 1e-9);
+        let f = [bb.min, Vec2::new(bb.max.x, bb.min.y), bb.max, Vec2::new(bb.min.x, bb.max.y), bb.min];
+        let first = boundary.first().copied().unwrap_or(bb.min);
+        f.iter().copied().chain(boundary.iter().copied()).chain([first, bb.min]).collect()
+    } else {
+        boundary.to_vec()
+    };
+    let Some(pc) = clip::PolyClip::new(&region) else {
+        // A degenerate boundary shows nothing (or, inverted, everything).
+        if inverted {
+            list.prims.extend(prims);
+            list.verts.extend(verts);
+            list.tris.extend(tris);
+            list.images.extend(images);
+            list.prim_layers.extend(layers);
+            list.pens.extend(pens);
+        }
+        return;
+    };
+    let clip = Clip::Poly(&pc);
+    // The source part, its primitives' starts relative to its own arrays.
+    let mut part = DisplayList { verts, tris, images, ..DisplayList::default() };
+    part.prims = prims
+        .into_iter()
+        .map(|mut p| {
+            p.start = p
+                .start
+                .saturating_sub(u32::try_from(if matches!(p.kind, Kind::Tris | Kind::Mask) { mark.tris } else { mark.verts }).unwrap_or(u32::MAX));
+            p
+        })
+        .collect();
+    for im in &part.images {
+        let t = pc.clip_triangles(&im.tris);
+        if t.len() >= 3 {
+            list.images.push(DImage { tris: t, ..im.clone() });
+        }
+    }
+    // Each primitive's pieces, with its layer and pen; plotted glyphs move to their new index.
+    let mut moved: Vec<(usize, usize, usize)> = Vec::with_capacity(part.prims.len());
+    for (k, p) in part.prims.iter().enumerate() {
+        let before = list.prims.len();
+        // This primitive alone (its own points, from 0).
+        let pts = part.points(p).to_vec();
+        let tri = matches!(p.kind, Kind::Tris | Kind::Mask);
+        let q = DPrim { start: 0, ..*p };
+        let one = if tri {
+            DisplayList { prims: vec![q], tris: pts, ..DisplayList::default() }
+        } else {
+            DisplayList { prims: vec![q], verts: pts, ..DisplayList::default() }
+        };
+        append_clipped(list, &one, &clip);
+        let after = list.prims.len();
+        if let Some(l) = layers.get(k) {
+            list.prim_layers.resize(after, *l);
+        } else if list.prim_layers.len() > before {
+            list.prim_layers.truncate(before);
+        }
+        if let Some(pen) = pens.get(k) {
+            list.pens.resize(before, Pen::default());
+            list.pens.resize(after, *pen);
+        }
+        moved.push((k, before, after));
+    }
+    for t in &mut list.texts {
+        let Some(k) = (t.prim as usize).checked_sub(mark.prims).filter(|_| t.prim < PlotText::CLIPPED) else { continue };
+        t.prim = match moved.get(k) {
+            Some(&(_, a, b)) if b == a + 1 && list.prims.get(a).map(|q| q.len) == part.prims.get(k).map(|q| q.len) => {
+                u32::try_from(a).unwrap_or(PlotText::CLIPPED)
+            }
+            Some(&(_, a, b)) if b == a => PlotText::NONE,
+            _ => PlotText::CLIPPED,
+        };
+    }
+}
+
 fn push_raw(dst: &mut DisplayList, p: &DPrim, kind: Kind, pts: &[Vec2]) {
     let min = match kind {
         Kind::Polyline => 2,
@@ -1599,6 +1709,7 @@ fn mleader_arrow(b: &mut Builder, ctx: &Ctx, e: &Entity, m: &cadcraft_doc::MLead
     if !name.is_empty() && !name.starts_with('_') && ctx.d.block(name).is_some() {
         let s = m.arrow_size;
         let ins = cadcraft_doc::Insert {
+            clip: None,
             block: name.to_string(),
             insert: a.to3(0.0),
             scale: cadcraft_geom::Vec3::new(s, s, s),
@@ -1623,6 +1734,18 @@ fn insert(b: &mut Builder, ctx: &Ctx, e: &Entity, ins: &cadcraft_doc::Insert, rg
     if ctx.depth >= cadcraft_doc::MAX_BLOCK_DEPTH {
         return;
     }
+    // XCLIP: everything the reference draws (its block and attributes) is clipped at the end.
+    let mark = ins.active_clip().map(|_| Mark::of(&b.list));
+    insert_parts(b, ctx, e, ins, rgb);
+    if let (Some(mark), Some(clip), Some(blk)) = (mark, ins.active_clip(), ctx.d.block(&ins.block)) {
+        let m = ctx.xf.then_before(ins.transform(blk.base.xy()));
+        let boundary: Vec<Vec2> = clip.boundary.iter().map(|p| m.apply(*p)).collect();
+        clip_since(&mut b.list, &mark, &boundary, clip.inverted);
+    }
+}
+
+/// [`insert`] without its clip: the block's copies and the attributes.
+fn insert_parts(b: &mut Builder, ctx: &Ctx, e: &Entity, ins: &cadcraft_doc::Insert, rgb: Ink) {
     if let Some(blk) = ctx.d.block(&ins.block) {
         let cols = ins.cols.clamp(1, 10_000);
         let rows = ins.rows.clamp(1, 10_000);

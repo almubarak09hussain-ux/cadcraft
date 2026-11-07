@@ -32,6 +32,7 @@ fn session() -> Session {
     d.blocks.insert("WALLS".into(), block("WALLS", &style("InBlock"), 0x9000));
     d.blocks.insert("OLD".into(), block("OLD", &style("Gone"), 0x9001));
     let ins = Insert {
+        clip: None,
         block: "WALLS".into(),
         insert: Vec3::ZERO,
         scale: Vec3::new(1.0, 1.0, 1.0),

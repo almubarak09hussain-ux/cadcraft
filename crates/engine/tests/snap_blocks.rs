@@ -22,6 +22,7 @@ fn block_b(s: &mut Session) {
 /// Adds a reference of `block`; `grid` is (columns, rows, column spacing, row spacing).
 fn insert(s: &mut Session, block: &str, at: (f64, f64), scale: (f64, f64), rotation_deg: f64, grid: (u32, u32, f64, f64)) -> String {
     let kind = EntityKind::Insert(Insert {
+        clip: None,
         block: block.into(),
         insert: Vec3::new(at.0, at.1, 0.0),
         scale: Vec3::new(scale.0, scale.1, 1.0),

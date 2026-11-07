@@ -137,6 +137,7 @@ our output in AutoCAD black-box.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-07 | minor | Block reference clips (XCLIP): SPATIAL_FILTER read into the reference (boundary in block coordinates, on/off) and written back from the model; clipped references draw and plot clipped, inverted clips as their kept region; attribute vertical justification read from group 74; multileader arrowhead blocks (342) kept and drawn |
 | 2026-11-07 | minor | Raster images: IMAGEATTACH and IMAGELOAD (PNG, JPEG) attach pictures by file reference, as AutoCAD does; pictures show on screen and in PDF and PNG plots; a reopened drawing reloads them from their files (desktop) or Insert ▸ Reload Image Files (web) |
 | 2026-11-06 | minor | Web build opens and saves DWG (was DXF only): the DWG converter runs in a Web Worker, one per file; the file picker no longer filters by type on touch devices, where iPadOS greyed DWG files out |
 | 2026-10-12 | minor | PDF output: object transparency plotted as PDF alpha (`/ExtGState` `/ca` `/CA`) when the page setup's or the plot's "Plot transparency" is on; PNG plots blend it, SVG uses `opacity`; plots without it are unchanged byte for byte |

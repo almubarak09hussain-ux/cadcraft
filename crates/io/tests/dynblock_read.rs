@@ -371,6 +371,7 @@ fn parameters_in_a_stretch_selection_are_carried_along() {
     let at = d.model.iter().count();
     assert_eq!(at, 0);
     let ins = cadcraft_doc::Insert {
+        clip: None,
         block: "Door".into(),
         insert: cadcraft_doc::geom::Vec3::new(0.0, 0.0, 0.0),
         scale: cadcraft_doc::geom::Vec3::new(1.0, 1.0, 1.0),
@@ -472,6 +473,7 @@ fn with_grips() -> cadcraft_doc::Drawing {
 /// A reference to Door at (100, 0), scale 1.
 fn door_at_100(d: &mut cadcraft_doc::Drawing) -> Handle {
     let ins = cadcraft_doc::Insert {
+        clip: None,
         block: "Door".into(),
         insert: cadcraft_doc::geom::Vec3::new(100.0, 0.0, 0.0),
         scale: cadcraft_doc::geom::Vec3::new(1.0, 1.0, 1.0),

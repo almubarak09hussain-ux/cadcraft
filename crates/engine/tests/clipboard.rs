@@ -19,6 +19,7 @@ fn line(d: &mut Drawing, layer: &str, a: (f64, f64), b: (f64, f64)) -> Entity {
 
 fn insert(d: &mut Drawing, block: &str, at: (f64, f64)) -> Entity {
     let kind = EntityKind::Insert(Insert {
+        clip: None,
         block: block.into(),
         insert: Vec3::new(at.0, at.1, 0.0),
         scale: Vec3::new(1.0, 1.0, 1.0),

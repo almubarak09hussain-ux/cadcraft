@@ -310,7 +310,12 @@ impl Db {
                 return Some(face);
             }
         }
-        self.by_family(k)
+        self.by_family(k).or_else(|| {
+            // Not installed: a metric-compatible substitute, so text keeps its width and wraps
+            // where the drawing's author saw it (the web build has no installed fonts).
+            let sub = metric_substitute(k)?;
+            self.file(sub).and_then(|b| faces(&b).into_iter().next())
+        })
     }
 
     /// A face whose family or full name is `k`, among files with a similar stem, then among the
@@ -486,6 +491,19 @@ pub(crate) fn register_static(name: &str, bytes: &'static [u8]) {
 }
 
 /// Normalise a style font name ("arial.ttf", "Arial", "ARIALBD.TTF") to a lookup key.
+/// The font file stem of a metric-compatible substitute for a font that isn't installed:
+/// Liberation Sans has Arial's (and Helvetica's) advance widths, glyph for glyph.
+fn metric_substitute(k: &str) -> Option<&'static str> {
+    let n: String = k.chars().filter(char::is_ascii_alphanumeric).map(|c| c.to_ascii_lowercase()).collect();
+    match n.as_str() {
+        "arial" | "arialmt" | "arialregular" | "helvetica" | "arialnova" => Some("liberationsans-regular"),
+        "arialbd" | "arialbold" | "arialboldmt" | "arialmtbold" | "helveticabold" => Some("liberationsans-bold"),
+        "ariali" | "arialitalic" | "helveticaoblique" => Some("liberationsans-italic"),
+        "arialbi" | "arialbolditalic" | "helveticaboldoblique" => Some("liberationsans-bolditalic"),
+        _ => None,
+    }
+}
+
 fn key(name: &str) -> String {
     let n = name.trim().to_ascii_lowercase();
     n.trim_end_matches(".ttf").trim_end_matches(".otf").trim_end_matches(".ttc").trim_end_matches(".otc").to_string()
@@ -876,5 +894,15 @@ mod family_tests {
         assert!(family_candidates(&stems, &norm("gost type a"), "go").is_empty(), "too short a word matches nothing");
         let many: Vec<String> = (0..100).map(|i| format!("gost{i:03}")).collect();
         assert!(family_candidates(&many, "gosttypea", "gost").len() <= MAX_FAMILY_FILES + MAX_FIRST_WORD_FILES);
+    }
+
+    #[test]
+    fn arial_falls_back_to_a_font_with_its_widths() {
+        assert_eq!(metric_substitute(&key("Arial.ttf")), Some("liberationsans-regular"));
+        assert_eq!(metric_substitute(&key("ArialBold.ttf")), Some("liberationsans-bold"));
+        assert_eq!(metric_substitute(&key("arialbd.ttf")), Some("liberationsans-bold"));
+        assert_eq!(metric_substitute("Helvetica"), Some("liberationsans-regular"));
+        assert_eq!(metric_substitute("Century Gothic"), None);
+        assert_eq!(metric_substitute(""), None);
     }
 }

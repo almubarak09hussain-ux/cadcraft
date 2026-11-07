@@ -71,6 +71,8 @@ jobs:
           CADCRAFT_BUILD_SHA: ${{ github.sha }}
         run: |
           trunk --version
+          # Liberation Sans, Arial's stand-in on the web (same widths); see web-fonts.sh.
+          export CRAFT_FONTS_DIR="$(bash web-fonts.sh "$RUNNER_TEMP/web-fonts")"
           trunk build --release
           ls -la ../../dist/web
 

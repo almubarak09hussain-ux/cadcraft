@@ -92,5 +92,11 @@ mod tests {
             let sh = crate::shape_stroke("\u{65E5}\u{672C}", 1.0, 1.0, 0.0);
             assert_eq!(sh.glyphs.len(), 2, "Japanese drawn from a fallback font");
         }
+        if CRAFT_FONTS.iter().any(|f| f.family == "Liberation Sans") {
+            // Helvetica, or Arial where it isn't installed (the web), is drawn with Liberation
+            // Sans: the same widths.
+            assert!(crate::ttf::find("Helvetica").is_some(), "Helvetica has a stand-in");
+            assert!(crate::ttf::find("ArialBold.ttf").is_some(), "Arial Bold has a stand-in");
+        }
     }
 }

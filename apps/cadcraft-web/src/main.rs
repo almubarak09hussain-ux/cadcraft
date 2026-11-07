@@ -17,6 +17,8 @@ mod dwg;
 #[cfg(target_arch = "wasm32")]
 mod host;
 #[cfg(target_arch = "wasm32")]
+mod offline;
+#[cfg(target_arch = "wasm32")]
 mod share;
 
 #[cfg(target_arch = "wasm32")]
@@ -109,7 +111,11 @@ mod web {
                 bridge.install();
                 cadcraft_engine::cmd::file::set_deliver(crate::host::deliver);
             }
-            None => cadcraft_engine::cmd::file::set_deliver(crate::dwg::deliver),
+            None => {
+                cadcraft_engine::cmd::file::set_deliver(crate::dwg::deliver);
+                // Standalone (not framed by a host page): keep a copy for offline use.
+                crate::offline::register();
+            }
         }
         let app_bridge = bridge.clone();
         wasm_bindgen_futures::spawn_local(async move {

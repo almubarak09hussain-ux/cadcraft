@@ -11,6 +11,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <!-- Built for speed (profile `web`, wasm-opt -O3), not size: the browser caches the download. -->
   <link data-trunk rel="rust" data-bin="cadcraft-web" data-cargo-profile-release="web" data-wasm-opt="3" data-weak-refs />
+  <!-- Offline: the service worker that keeps this build on the device (registered in src/offline.rs). -->
+  <link data-trunk rel="copy-file" href="sw.js" />
   <!-- DWG open and save run in this Web Worker (apps/cadcraft-dwg-worker). -->
   <link data-trunk rel="rust" href="../cadcraft-dwg-worker/Cargo.toml" data-bin="cadcraft-dwg-worker" data-type="worker" data-loader-shim data-cargo-profile-release="web" data-wasm-opt="3" data-weak-refs />
   <style>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>CADCraft</title>
+  <!-- Added to the Home Screen (iPad, iPhone, Android), CADCraft opens full screen, without the browser's bars. -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="CADCraft">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <!-- Built for speed (profile `web`, wasm-opt -O3), not size: the browser caches the download. -->
+  
+<script type="module">
+import init, * as bindings from './cadcraft-web-e390e76ddb2b8dfe.js';
+const wasm = await init({ module_or_path: './cadcraft-web-cedd15d57868cf56_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+  <!-- DWG open and save run in this Web Worker (apps/cadcraft-dwg-worker). -->
+  
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #22282f; }
+    #cadcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #cadcraft_loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #b8b8b8; font: 14px system-ui, sans-serif; pointer-events: none; }
+  </style>
+<link rel="modulepreload" href="./cadcraft-web-e390e76ddb2b8dfe.js" crossorigin="anonymous" integrity="sha384-114O0II4CGl+5kRYL8dm0qhuo/YbNzp1zAttQ9Lp/S1oi/gSwokwNwPTjXwnDFki"><link rel="preload" href="./cadcraft-web-cedd15d57868cf56_bg.wasm" crossorigin="anonymous" integrity="sha384-ixZUzoZFfbXgoW1YTEzMGwQ7I2y9rRtc7CGqd3qYFoi504XEDNjNcUq9jOBKDgvH" as="fetch" type="application/wasm"></head>
+<body>
+  <canvas id="cadcraft_canvas"></canvas>
+  <div id="cadcraft_loading">Loading CADCraft&hellip;</div>
+</body>
+</html>

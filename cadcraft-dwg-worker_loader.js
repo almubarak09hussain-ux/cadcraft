@@ -1,0 +1,1 @@
+importScripts("./cadcraft-dwg-worker.js");wasm_bindgen("./cadcraft-dwg-worker_bg.wasm");

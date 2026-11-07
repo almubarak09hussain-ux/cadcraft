@@ -123,6 +123,9 @@ pub struct CanvasState {
     pub param: crate::parametric::Cache,
     /// A selection window opened by a press-and-drag, to close where the button is let go.
     drag_window: bool,
+    /// A freehand path being dragged at a prompt that takes one (TRIM/EXTEND Quick mode), in
+    /// drawing coordinates.
+    freehand: Option<Vec<Vec2>>,
     /// The right-click that opened the shortcut menu held Shift or Ctrl: it is the object snap
     /// menu ([`crate::context_menu`]).
     pub snap_menu: bool,
@@ -1536,11 +1539,49 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
             app.session.echo(e.to_string());
         }
     }
+    // Press-and-drag freehand path (TRIM and EXTEND in Quick mode): the objects it crosses are
+    // trimmed or extended when the button is let go, as in AutoCAD.
+    if resp.drag_started_by(egui::PointerButton::Primary)
+        && !middle_down
+        && let Some(origin) = ui.input(|i| i.pointer.press_origin())
+        && rect.contains(origin)
+        && app.session.current_prompt().is_some_and(|p| p.freehand)
+    {
+        app.canvas.freehand = Some(vec![xf.to_world(origin)]);
+    }
+    if app.canvas.freehand.is_some() {
+        if let (Some(path), Some(now)) = (app.canvas.freehand.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
+            let w = xf.to_world(now);
+            // A point every few pixels: enough to follow the stroke, few enough to stay quick.
+            let far = path.last().is_none_or(|l| (w - *l).len() * xf.scale >= 4.0);
+            if far && path.len() < MAX_FREEHAND {
+                path.push(w);
+            }
+        }
+        if resp.drag_stopped_by(egui::PointerButton::Primary) || !ui.input(|i| i.pointer.primary_down()) {
+            let path = app.canvas.freehand.take().unwrap_or_default();
+            if path.len() >= 2 {
+                let mut r = app.session.input(Input::Keyword("Fence".into()));
+                for p in &path {
+                    if r.is_ok() {
+                        r = app.session.input(Input::Point(*p));
+                    }
+                }
+                if r.is_ok() {
+                    r = app.session.input(Input::Enter);
+                }
+                if let Err(e) = r {
+                    app.session.echo(e.to_string());
+                }
+            }
+        }
+    }
     // Press-and-drag selection window (AutoCAD's PICKDRAG = 2; click-click still works): a drag
     // that starts while objects are being selected opens a window where the button went down,
     // and letting go closes it. Drags on grips and drags while drawing are left alone.
     if resp.drag_started_by(egui::PointerButton::Primary)
         && !middle_down
+        && app.canvas.freehand.is_none()
         && app.session.pending_window.is_none()
         && let Some(origin) = ui.input(|i| i.pointer.press_origin())
         && rect.contains(origin)
@@ -1857,6 +1898,10 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
         crate::cmdline::show(app, ui, full);
     }
     selection_cycling_list(app, ui, &xf, rect);
+    if let Some(path) = &app.canvas.freehand {
+        let pts: Vec<Pos2> = path.iter().map(|p| xf.to_screen(*p)).collect();
+        painter.add(egui::Shape::line(pts, Stroke::new(1.5, Tokens::get().crosshair)));
+    }
     // Crosshair cursor.
     if inside {
         // Hide the OS cursor under the drawn crosshair, unless assistive tech needs it (#39).
@@ -2784,6 +2829,9 @@ mod hatch_pick_tests {
         assert!(app.session.running.is_none(), "{:?}", app.session.running.as_ref().map(|r| r.machine.name()));
     }
 }
+
+/// Most points a freehand trim path keeps.
+const MAX_FREEHAND: usize = 2_000;
 
 /// "Object type (layer)" for a selection-cycling list row.
 fn cycling_label(d: &cadcraft_doc::Drawing, h: Handle) -> String {

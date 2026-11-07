@@ -57,6 +57,11 @@ pub struct Prompt {
     /// prompt (the routine writes all of it).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub raw: bool,
+    /// A press-and-drag on the drawing at this prompt draws a freehand path, entered as a fence
+    /// ([`Input::Keyword`] `"Fence"`, the path's points, [`Input::Enter`]): TRIM and EXTEND in
+    /// Quick mode.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub freehand: bool,
 }
 
 /// Parse `@distance<angle` (relative polar), returning `(distance, angle in radians)`.
@@ -104,6 +109,11 @@ impl Prompt {
         self
     }
     /// The base is a window's first corner (the `corner` field).
+    /// A drag draws a freehand fence ([`Prompt::freehand`]).
+    pub fn freehand(mut self) -> Self {
+        self.freehand = true;
+        self
+    }
     pub fn corner(mut self, p: Vec2) -> Self {
         self.base = Some(p);
         self.corner = true;

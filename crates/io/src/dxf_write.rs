@@ -2379,8 +2379,8 @@ fn tags_for(d: &Drawing, version: Version, target: Version) -> Vec<Tag> {
         for v in x.inverse {
             w.f(40, v);
         }
-        // The boundary's own transform: none.
-        for v in [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0] {
+        // The boundary's own transform: none (row by row, like the first).
+        for v in [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0] {
             w.f(40, v);
         }
     }

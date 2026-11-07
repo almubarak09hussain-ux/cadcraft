@@ -120,3 +120,49 @@ fn hostile_spatial_filters_do_not_panic() {
         let _ = cadcraft_io::read_dxf(t.as_bytes());
     }
 }
+
+/// The SPATIAL_FILTER's group-40 values after the boundary, in file order.
+fn filter_values(text: &str) -> Vec<f64> {
+    let start = text.find("AcDbSpatialFilter").unwrap();
+    // After the subclass marker line: code, value, code, value…
+    let lines: Vec<&str> = text[start..].lines().skip(1).map(str::trim).collect();
+    let mut out = Vec::new();
+    for pair in lines.chunks(2) {
+        if let [code, value] = pair {
+            if *code == "0" {
+                break;
+            }
+            if *code == "40" {
+                out.push(value.parse().unwrap());
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn the_filter_matrices_are_written_row_by_row_as_autocad_reads_them() {
+    // Unturned reference at (100, 50): the first matrix (block ← world) is a move by (-100, -50),
+    // its translation the fourth value of each row (AutoCAD's files have it there).
+    let mut d = drawing(Some(square(false)));
+    let h = d.model.iter().map(|e| e.handle).next().unwrap();
+    d.model.modify(h, |e| {
+        if let EntityKind::Insert(i) = &mut e.kind {
+            i.rotation = 0.0;
+        }
+    });
+    let text = cadcraft_io::write_dxf(&d);
+    let v = filter_values(&text);
+    assert!(v.len() >= 24, "{v:?}");
+    let first = &v[v.len() - 24..v.len() - 12];
+    let want = [1.0, 0.0, 0.0, -100.0, 0.0, 1.0, 0.0, -50.0, 0.0, 0.0, 1.0, 0.0];
+    for (a, b) in first.iter().zip(want) {
+        assert!((a - b).abs() < 1e-9, "{first:?}");
+    }
+    // A clip made when the reference stood elsewhere: the boundary stays where it was on the block.
+    let moved = text.replacen("-100.0", "-110.0", 1);
+    let back = cadcraft_io::read_dxf(moved.as_bytes()).unwrap();
+    let Some(EntityKind::Insert(i)) = back.model.iter().map(|e| e.kind.clone()).next() else { panic!("no insert") };
+    let b = cadcraft_geom::Bounds2::from_points(i.clip.unwrap().boundary.iter().copied());
+    assert!((b.min - Vec2::new(-8.0, 2.0)).len() < 1e-6 && (b.max - Vec2::new(-5.0, 5.0)).len() < 1e-6, "{b:?}");
+}

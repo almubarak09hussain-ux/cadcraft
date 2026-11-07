@@ -114,10 +114,10 @@ fn parse_filter(tags: &[Tag]) -> Option<BlockClip> {
     let matrix = |at: usize| -> Option<M34> {
         let v = doubles.get(at..at + 12)?;
         let mut m = IDENTITY;
-        // Column-major: four columns of three rows.
-        for col in 0..4 {
-            for (row, line) in m.iter_mut().enumerate() {
-                if let (Some(cell), Some(x)) = (line.get_mut(col), v.get(col * 3 + row)) {
+        // Row by row: three rows of four (the translation last), as AutoCAD writes them.
+        for (row, line) in m.iter_mut().enumerate() {
+            for (col, cell) in line.iter_mut().enumerate() {
+                if let Some(x) = v.get(row * 4 + col) {
                     *cell = *x;
                 }
             }
@@ -207,7 +207,7 @@ fn fill(store: &mut EntityStore, clips: &HashMap<Handle, BlockClip>) {
 
 /// The boundary a SPATIAL_FILTER holds for `clip` on a reference whose block-to-world transform
 /// is `m`: the points in world coordinates (an inverted clip as its kept region, see the module
-/// comment), and the inverse of `m` as the filter's first matrix (column-major values).
+/// comment), and the inverse of `m` as the filter's first matrix (row by row).
 pub(crate) fn filter_data(clip: &BlockClip, m: &cadcraft_geom::Mat3, block_extent: Option<(Vec2, Vec2)>) -> (Vec<Vec2>, [f64; 12]) {
     let world: Vec<Vec2> = clip.boundary.iter().map(|p| m.apply(*p)).collect();
     let pts = if clip.inverted {
@@ -239,13 +239,9 @@ pub(crate) fn filter_data(clip: &BlockClip, m: &cadcraft_geom::Mat3, block_exten
     } else {
         IDENTITY
     };
-    let mut col_major = [0.0; 12];
-    for col in 0..4 {
-        for (row, line) in inv.iter().enumerate() {
-            if let (Some(slot), Some(v)) = (col_major.get_mut(col * 3 + row), line.get(col)) {
-                *slot = *v;
-            }
-        }
+    let mut values = [0.0; 12];
+    for (slot, v) in values.iter_mut().zip(inv.iter().flatten()) {
+        *slot = *v;
     }
-    (pts, col_major)
+    (pts, values)
 }

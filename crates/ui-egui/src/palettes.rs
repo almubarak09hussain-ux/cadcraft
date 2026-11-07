@@ -837,6 +837,7 @@ pub(crate) fn properties_section(app: &mut CadApp, ui: &mut egui::Ui) {
     let ids: Vec<String> = sel.iter().map(|h| h.hex()).collect();
     let mut set: Option<Value> = None;
     let mut custom_set: Option<Value> = None;
+    let mut attrib_set: Option<Value> = None;
     let group = |ui: &mut egui::Ui, title: &str| {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::hover());
         ui.painter().rect_filled(r.shrink2(vec2(6.0, 1.0)), 2.0, t.chrome_dark);
@@ -1086,6 +1087,20 @@ pub(crate) fn properties_section(app: &mut CadApp, ui: &mut egui::Ui) {
                         });
                     }
                 }
+                // Attribute values, edited in place as in AutoCAD's Properties palette
+                // (constant attributes are fixed by their definition).
+                if !i.attribs.is_empty() {
+                    group(ui, "Attributes");
+                    for a in &i.attribs {
+                        prop_row(ui, &a.tag, |ui| {
+                            if a.constant {
+                                read_only(ui, &a.text.value);
+                            } else if let Some(v) = edit_field(ui, ui.id().with(("attrib", e.handle, &a.tag)), a.text.value.clone()) {
+                                attrib_set = Some(json!({ "handle": e.handle.hex(), "values": { a.tag.clone(): v } }));
+                            }
+                        });
+                    }
+                }
             }
             _ => {}
         }
@@ -1096,5 +1111,8 @@ pub(crate) fn properties_section(app: &mut CadApp, ui: &mut egui::Ui) {
     report_bad(app, bad);
     if let Some(p) = custom_set {
         let _ = app.run("blocks.reference.set", p);
+    }
+    if let Some(p) = attrib_set {
+        let _ = app.run("attedit", p);
     }
 }

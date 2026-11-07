@@ -54,6 +54,7 @@ mod web {
         fn save(&mut self, storage: &mut dyn eframe::Storage) {
             storage.set_string(cadcraft_ui_egui::options::PROFILE_KEY, self.0.profile_json());
             storage.set_string(cadcraft_ui_egui::PREFS_KEY, self.0.prefs_json());
+            storage.set_string(BIG_CURSOR_KEY, "1".into());
         }
         fn persist_egui_memory(&self) -> bool {
             false
@@ -65,6 +66,9 @@ mod web {
             }
         }
     }
+
+    /// Set once the larger web cursor defaults were applied (see `start`).
+    const BIG_CURSOR_KEY: &str = "cadcraft.web.big-cursor";
 
     fn query() -> String {
         web_sys::window().and_then(|w| w.location().search().ok()).unwrap_or_default()
@@ -135,6 +139,13 @@ mod web {
                         }
                         if let Some(prefs) = cc.storage.and_then(|s| s.get_string(cadcraft_ui_egui::PREFS_KEY)) {
                             app.load_prefs(&prefs);
+                        }
+                        // A touch screen and a high-density display make AutoCAD's small cursor
+                        // (crosshair 5 %, pick box 3 px) hard to see: start larger, once; the
+                        // Options dialog changes them after that.
+                        if cc.storage.and_then(|s| s.get_string(BIG_CURSOR_KEY)).is_none() {
+                            let _ = app.run("setvar", serde_json::json!({ "name": "CURSORSIZE", "value": 25 }));
+                            let _ = app.run("setvar", serde_json::json!({ "name": "PICKBOX", "value": 6 }));
                         }
                         // `?cpu`: no render state for the app, so the canvas draws with egui shapes.
                         if !crate::wants_cpu(&query())

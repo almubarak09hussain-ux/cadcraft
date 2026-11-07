@@ -1496,6 +1496,13 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
         app.canvas.drag_window = false;
     }
     let pressed_primary = pressed_primary && !picked && !hatch_dialog && !idle_dbl;
+    // A click on the drawing while the selection-cycling list is open dismisses it.
+    let pressed_primary = if app.session.cycling.is_some() && inside && pressed_primary {
+        let _ = app.session.choose_cycled(None);
+        false
+    } else {
+        pressed_primary
+    };
     // Clicks.
     if inside
         && pressed_primary
@@ -1579,7 +1586,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     // The cursor picks objects (pick box, rollover highlight): "Select objects" and single-object
     // prompts, or no command with PICKFIRST on; SELECTIONPREVIEW says in which of those it shows.
     let selecting = app.session.previews_selection();
-    if inside && selecting && app.session.pending_window.is_none() {
+    if inside && selecting && app.session.pending_window.is_none() && app.session.cycling.is_none() {
         if hover_pos != app.canvas.hover_at
             && let (Some(w), Ok(st)) = (raw_world, app.session.state())
         {
@@ -1588,7 +1595,8 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
                 .filter(|h| st.doc.entity(*h).is_none_or(|e| !cadcraft_engine::select::preview_filtered(&st.doc, e, filter)));
             app.canvas.hover_at = hover_pos;
         }
-    } else {
+    } else if app.session.cycling.is_none() {
+        // (While the selection-cycling list is open, its hovered row sets the highlight.)
         app.canvas.hover = None;
         app.canvas.hover_at = None;
     }
@@ -1848,6 +1856,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui) {
     if app.ui.show_command_line {
         crate::cmdline::show(app, ui, full);
     }
+    selection_cycling_list(app, ui, &xf, rect);
     // Crosshair cursor.
     if inside {
         // Hide the OS cursor under the drawn crosshair, unless assistive tech needs it (#39).
@@ -2773,5 +2782,68 @@ mod hatch_pick_tests {
         assert_eq!(app.hatch_dlg.as_ref().map(|s| s.edit.iter().map(|h| h.hex()).collect::<Vec<_>>()), Some(vec![hx]));
         // The double-click (at the hatch's centre grip) only opens the dialog: no grip edit.
         assert!(app.session.running.is_none(), "{:?}", app.session.running.as_ref().map(|r| r.machine.name()));
+    }
+}
+
+/// "Object type (layer)" for a selection-cycling list row.
+fn cycling_label(d: &cadcraft_doc::Drawing, h: Handle) -> String {
+    let Some(e) = d.entity(h) else { return h.hex() };
+    let raw = e.kind.dxf_name();
+    let mut name: String = raw.chars().take(1).chain(raw.chars().skip(1).flat_map(char::to_lowercase)).collect();
+    if name == "Lwpolyline" {
+        name = "Polyline".into();
+    } else if name == "Insert" {
+        name = "Block Reference".into();
+    } else if name == "Mtext" {
+        name = "MText".into();
+    }
+    format!("{} ({})", crate::i18n::t(&name), e.common.layer)
+}
+
+/// Selection cycling: the objects under a click that hit several overlapping ones, listed next to
+/// the click as AutoCAD does. Hovering a row highlights its object; clicking it picks it; Escape
+/// (or a click on the drawing) closes the list without picking.
+fn selection_cycling_list(app: &mut CadApp, ui: &mut egui::Ui, xf: &Xf, rect: Rect) {
+    let Some(c) = app.session.cycling.clone() else { return };
+    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        let _ = app.session.choose_cycled(None);
+        return;
+    }
+    let Ok(st) = app.session.state() else { return };
+    let rows: Vec<(Handle, String)> = c.candidates.iter().map(|h| (*h, cycling_label(&st.doc, *h))).collect();
+    let anchor = xf.to_screen(c.at);
+    let at = pos2(anchor.x.clamp(rect.left(), rect.right() - 200.0) + 16.0, anchor.y.clamp(rect.top(), rect.bottom() - 40.0) + 16.0);
+    let mut chosen: Option<Option<Handle>> = None;
+    let mut hovered = None;
+    egui::Area::new(ui.id().with("selection-cycling")).order(egui::Order::Foreground).fixed_pos(at).show(ui.ctx(), |ui| {
+        egui::Frame::popup(ui.style()).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(crate::tl!("Selection")).strong());
+                ui.add_space(24.0);
+                if ui.small_button(crate::tl!("Close")).clicked() {
+                    chosen = Some(None);
+                }
+            });
+            ui.separator();
+            egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
+                for (h, label) in &rows {
+                    let r = ui.add(egui::Button::new(label.as_str()).frame(false).min_size(vec2(180.0, 22.0)));
+                    if r.hovered() {
+                        hovered = Some(*h);
+                    }
+                    if r.clicked() {
+                        chosen = Some(Some(*h));
+                    }
+                }
+            });
+        });
+    });
+    app.canvas.hover = hovered;
+    app.canvas.hover_at = None;
+    if let Some(pick) = chosen {
+        if let Err(e) = app.session.choose_cycled(pick) {
+            app.session.echo(e.to_string());
+        }
+        app.canvas.hover = None;
     }
 }

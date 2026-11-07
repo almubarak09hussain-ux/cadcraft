@@ -513,6 +513,20 @@ pub struct Running {
     pub selection_before: Vec<Handle>,
 }
 
+/// Selection cycling (SELECTIONCYCLING): a click that hit several overlapping objects, waiting for
+/// one to be chosen from the list the interface shows ([`Session::choose_cycled`]).
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct CyclingPick {
+    /// The clicked point (drawing coordinates).
+    pub at: Vec2,
+    /// The objects under it, nearest first.
+    pub candidates: Vec<Handle>,
+    pub during_command: bool,
+    /// Shift was held (no command running): the chosen object is removed or added as a
+    /// Shift+click would.
+    pub shift: bool,
+}
+
 /// A pending window/crossing selection started by a click on empty space.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct PendingWindow {
@@ -654,6 +668,8 @@ pub struct Session {
     pub clipboard: Vec<Entity>,
     pub clipboard_base: Vec2,
     pub pending_window: Option<PendingWindow>,
+    /// A click on overlapping objects waiting for a choice (selection cycling).
+    pub cycling: Option<CyclingPick>,
     /// A selection mode typed at "Select objects" (W, C, F, WP, CP) collecting its points.
     pub select_mode: Option<select::SelectMode>,
     /// SIngle typed at "Select objects": the next selection ends the prompt.
@@ -712,6 +728,7 @@ impl Session {
             clipboard: Vec::new(),
             clipboard_base: Vec2::ZERO,
             pending_window: None,
+            cycling: None,
             select_mode: None,
             select_single: false,
             untitled_counter: 0,
@@ -998,6 +1015,7 @@ impl Session {
                 }
                 self.running = Some(Running { id: spec.id.to_string(), machine, before, selection_before });
                 self.pending_window = None;
+                self.cycling = None;
                 // Some commands complete immediately (e.g. ERASE with a pickfirst selection).
                 self.feed(None)?;
                 Ok(())
@@ -1115,6 +1133,10 @@ impl Session {
                     let crossing = p.x < pw.corner.x;
                     let hs = select::select_window(self.doc()?, &space, Bounds2::new(pw.corner, p), crossing);
                     return Ok(Some(Input::Pick(cmd::groups::expand(self, hs))));
+                }
+                if let Some(c) = self.cycle_candidates(&space, p, ap)? {
+                    self.cycling = Some(CyclingPick { at: p, candidates: c, during_command: true, shift: false });
+                    return Ok(None);
                 }
                 match select::pick(self.doc()?, &space, p, ap) {
                     Some(h) => Ok(Some(Input::Pick(cmd::groups::expand(self, vec![h])))),
@@ -1270,6 +1292,7 @@ impl Session {
             return;
         }
         self.pending_window = None;
+        self.cycling = None;
         self.select_mode = None;
         let label = find_command(&run.id).map(|c| c.label).unwrap_or("Command");
         let _ = cancelled;
@@ -1339,6 +1362,7 @@ impl Session {
             let _ = self.feed(Some(Input::Cancel));
         } else {
             self.pending_window = None;
+            self.cycling = None;
             self.set_selection(Vec::new());
         }
     }
@@ -1669,21 +1693,57 @@ impl Session {
             return Ok(());
         }
         let ap = self.pixel_size() * self.settings.pickbox.max(1.0) * 1.5;
+        if let Some(c) = self.cycle_candidates(&space, p, ap)? {
+            self.cycling = Some(CyclingPick { at: p, candidates: c, during_command: false, shift });
+            return Ok(());
+        }
         match select::pick(self.doc()?, &space, p, ap) {
-            Some(h) => {
-                // With group selection the object's selectable groups come (or go) with it.
-                let hs = cmd::groups::expand(self, vec![h]);
-                let mut sel = if pickadd || shift { self.selection() } else { Vec::new() };
-                let had = sel.contains(&h);
-                if shift && (pickadd || had) {
-                    sel.retain(|x| !hs.contains(x));
-                } else if !had {
-                    sel.extend(hs);
-                }
-                self.set_selection(sel);
-            }
+            Some(h) => self.idle_pick(h, shift),
             None => self.pending_window = Some(PendingWindow { corner: p, during_command: false }),
         }
+        Ok(())
+    }
+
+    /// Add `h` to the selection (or take it out) as a click on it with no command running does.
+    fn idle_pick(&mut self, h: Handle, shift: bool) {
+        let pickadd = self.settings.pickadd;
+        // With group selection the object's selectable groups come (or go) with it.
+        let hs = cmd::groups::expand(self, vec![h]);
+        let mut sel = if pickadd || shift { self.selection() } else { Vec::new() };
+        let had = sel.contains(&h);
+        if shift && (pickadd || had) {
+            sel.retain(|x| !hs.contains(x));
+        } else if !had {
+            sel.extend(hs);
+        }
+        self.set_selection(sel);
+    }
+
+    /// With selection cycling on, the objects under a click when there is more than one.
+    fn cycle_candidates(&self, space: &Space, p: Vec2, ap: f64) -> Result<Option<Vec<Handle>>> {
+        if !self.settings.selection_cycling {
+            return Ok(None);
+        }
+        let c = select::pick_all(self.doc()?, space, p, ap);
+        Ok((c.len() > 1).then_some(c))
+    }
+
+    /// Finish a selection-cycling click with the object chosen from its list (`None`: the list
+    /// was dismissed, nothing is picked). A handle that wasn't offered is an error.
+    pub fn choose_cycled(&mut self, h: Option<Handle>) -> Result<()> {
+        let Some(c) = self.cycling.take() else { return Ok(()) };
+        let Some(h) = h else { return Ok(()) };
+        if !c.candidates.contains(&h) {
+            return Err(EngineError::Other("that object was not under the click".into()));
+        }
+        if c.during_command {
+            if self.running.is_none() {
+                return Ok(());
+            }
+            let hs = cmd::groups::expand(self, vec![h]);
+            return self.input(Input::Pick(hs));
+        }
+        self.idle_pick(h, c.shift);
         Ok(())
     }
 

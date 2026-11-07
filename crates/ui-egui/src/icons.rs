@@ -112,6 +112,7 @@ pub enum Icon {
     OTrack,
     Lineweight,
     Transparency,
+    SelectionCycling,
     Isodraft,
     DynInput,
     QuickProps,
@@ -761,6 +762,13 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
         Transparency => {
             pen.fill_rect(3.0, 3.0, 12.0, 12.0, b.gamma_multiply(0.7));
             pen.fill_rect(9.0, 9.0, 12.0, 12.0, b.gamma_multiply(0.35));
+        }
+        SelectionCycling => {
+            // Two overlapping objects and a circling arrow: pick which one.
+            pen.rect(3.0, 3.0, 11.0, 11.0, b);
+            pen.rect(10.0, 10.0, 11.0, 11.0, b);
+            pen.poly(&[(16.0, 3.0), (21.0, 3.0), (21.0, 7.0)], false, b);
+            pen.l(19.0, 5.0, 21.0, 3.0);
         }
         Isodraft => {
             pen.poly(&[(12.0, 3.0), (20.0, 8.0), (20.0, 17.0), (12.0, 21.0), (4.0, 17.0), (4.0, 8.0)], true, b);

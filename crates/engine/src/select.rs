@@ -187,6 +187,33 @@ pub fn pick(d: &Drawing, space: &Space, p: Vec2, aperture: f64) -> Option<Handle
     pick_with(d, space, &ix, p, aperture)
 }
 
+/// Most objects a selection-cycling list offers.
+const MAX_CYCLE: usize = 32;
+
+/// Every selectable object within `aperture` of `p`, nearest first (at most [`MAX_CYCLE`]): the
+/// list selection cycling offers when objects overlap.
+pub fn pick_all(d: &Drawing, space: &Space, p: Vec2, aperture: f64) -> Vec<Handle> {
+    let ix = spatial::index(d, space);
+    let probe = Bounds2::new(p, p).expand(aperture);
+    let Some(cands) = candidates(d, space, &ix, &probe.expand(aperture), true, true) else { return Vec::new() };
+    let mut hits: Vec<(f64, Handle)> = Vec::new();
+    for (e, known) in cands {
+        if !selectable(d, e) {
+            continue;
+        }
+        if !is_infinite(e) && !bounds_of(d, e, known).expand(aperture).intersects(&probe) {
+            continue;
+        }
+        let dist = entity_distance(d, e, p, aperture / 4.0);
+        if dist <= aperture && dist.is_finite() {
+            hits.push((dist, e.handle));
+        }
+    }
+    hits.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    hits.dedup_by_key(|h| h.1);
+    hits.into_iter().take(MAX_CYCLE).map(|(_, h)| h).collect()
+}
+
 pub(crate) fn pick_with(d: &Drawing, space: &Space, ix: &Option<std::sync::Arc<SpatialIndex>>, p: Vec2, aperture: f64) -> Option<Handle> {
     let probe = Bounds2::new(p, p).expand(aperture);
     let mut best: Option<(f64, Handle)> = None;

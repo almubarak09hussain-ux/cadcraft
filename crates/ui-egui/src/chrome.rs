@@ -339,6 +339,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
             (Icon::Osnap, s.osmode & mode::OFF == 0 && s.osmode != 0, "osnap", "Object Snap (F3)"),
             (Icon::Lineweight, s.lwdisplay, "lwdisplay", "Show/Hide Lineweight"),
             (Icon::Transparency, s.transparency_display, "transparencydisplay", "Show/Hide Transparency"),
+            (Icon::SelectionCycling, s.selection_cycling, "selectioncycling", "Selection Cycling"),
             (Icon::DynInput, s.dynmode, "dynmode", "Dynamic Input (F12)"),
             (Icon::QuickProps, s.qpmode, "qpmode", "Quick Properties"),
             (Icon::Annotation, anno_all, "annovisible.toggle", "Annotation Visibility"),
